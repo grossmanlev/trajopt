@@ -7,6 +7,7 @@ Uses a filtered action sequence to generate smooth motions.
 import numpy as np
 from trajopt.algos.trajopt_base import Trajectory
 from trajopt.utils import gather_paths_parallel
+from trajopt.utils import ReplayBuffer
 
 class MPPI(Trajectory):
     def __init__(self, env, H, paths_per_cpu,
@@ -17,6 +18,7 @@ class MPPI(Trajectory):
                  filter_coefs=None,
                  default_act='repeat',
                  seed=123,
+                 init_seq=None,
                  ):
         self.env, self.seed = env, seed
         self.n, self.m = env.observation_dim, env.action_dim
@@ -38,6 +40,9 @@ class MPPI(Trajectory):
         self.sol_state.append(self.env.get_env_state().copy())
         self.sol_obs.append(self.env._get_obs())
         self.act_sequence = np.ones((self.H, self.m)) * self.mean
+
+        if init_seq is not None and init_seq.shape == self.act_sequence.shape:
+            self.act_sequence = init_seq
 
     def update(self, paths):
         num_traj = len(paths)
@@ -88,8 +93,36 @@ class MPPI(Trajectory):
         return paths
 
     def train_step(self, niter=1):
+        # states = []
+        # actions = []
+        # rewards = []
+        replay_tuples = []
         t = len(self.sol_state) - 1
         for _ in range(niter):
             paths = self.do_rollouts(self.seed+t)
+
+            for path in paths:
+                for i in range(len(path["states"]) - 1):
+                    replay_tuples.append(
+                        ReplayBuffer.Tuple(path["states"][i],
+                                           path["actions"][i],
+                                           path["rewards"][i],
+                                           path["states"][i + 1]))
+
+            # s = np.concatenate([paths[i]["states"] for i in range(len(paths))])
+            # a = np.concatenate([paths[i]["actions"] for i in range(len(paths))])
+            # r = np.concatenate([paths[i]["rewards"] for i in range(len(paths))])
+            # if len(states) == 0:
+            #     states = s
+            #     actions = a
+            #     rewards = r
+            # else:
+            #     states = np.concatenate((states, s))
+            #     actions = np.concatenate((actions, a))
+            #     rewards = np.concatenate((rewards, r))
+
             self.update(paths)
         self.advance_time()
+        print(len(replay_tuples))
+        return replay_tuples
+        # return dict(states=states, actions=actions, rewards=rewards)
