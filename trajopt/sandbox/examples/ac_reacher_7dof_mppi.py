@@ -11,9 +11,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+import os
+from datetime import datetime
+
 # =======================================
+DATA_DIR = 'data'
+now = datetime.now()
+DATE_STRING = now.strftime("%m:%d:%Y-%H:%M:%S")
+os.mkdir(DATA_DIR + '/' + DATE_STRING)
 ENV_NAME = 'reacher_7dof'
-PICKLE_FILE = ENV_NAME + '_mppi.pickle'
+PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_mppi.pickle'
+MODEL_PATH = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_critic.pt'
 SEED = 12345
 N_ITER = 5
 H_total = 100
@@ -25,7 +33,7 @@ class Critic(nn.Module):
     """
     implements both actor and critic in one model
     """
-    def __init__(self, gamma=0.95, num_iters=10000, batch_size=32):
+    def __init__(self, gamma=1.0, num_iters=10000, batch_size=32):
         super(Critic, self).__init__()
 
         self.gamma = gamma
@@ -73,7 +81,7 @@ if __name__ == '__main__':
     critic = Critic()
     critic.float()
 
-    optimizer = optim.Adam(critic.parameters(), lr=1e-4)
+    optimizer = optim.Adam(critic.parameters(), lr=1e-2)
     criterion = nn.MSELoss()
 
     ts = timer.time()
@@ -108,7 +116,8 @@ if __name__ == '__main__':
 
             # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
             y_batch = torch.stack(
-                tuple(reward_batch[i] + critic.gamma * output_batch[i]
+                tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
+                      else reward_batch[i] + critic.gamma * output_batch[i]
                       for i in range(len(minibatch))))
 
             # extract V
@@ -135,6 +144,7 @@ if __name__ == '__main__':
         if t % 25 == 0 and t > 0:
             print("==============>>>>>>>>>>> saving progress ")
             pickle.dump(agent, open(PICKLE_FILE, 'wb'))
+            torch.save(critic.state_dict(), MODEL_PATH)
 
     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
     # agent = pickle.load(open(PICKLE_FILE, 'rb'))
