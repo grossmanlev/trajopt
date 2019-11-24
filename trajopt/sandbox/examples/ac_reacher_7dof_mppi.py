@@ -115,10 +115,17 @@ if __name__ == '__main__':
             output_batch = critic(next_state_batch)
 
             # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
-            y_batch = torch.stack(
-                tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
-                      else reward_batch[i] + critic.gamma * output_batch[i]
-                      for i in range(len(minibatch))))
+            y_batch = []
+            for j in range(len(minibatch)):
+                if abs(reward_batch[j]) < 1.0:
+                    y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
+                else:
+                    y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
+            y_batch = torch.stack(tuple(y_batch))
+            # y_batch = torch.stack(
+            #     tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
+            #           else reward_batch[i] + critic.gamma * output_batch[i]
+            #           for i in range(len(minibatch))))
 
             # extract V
             # v_batch = torch.sum(critic(state_batch), dim=1)  # ??
