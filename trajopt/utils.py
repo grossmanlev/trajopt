@@ -74,6 +74,7 @@ def do_env_rollout(env_name, start_state, act_list):
         rewards = []
         env_infos = []
         states = []
+        next_obs = []
 
         for k in range(H):
             obs.append(e._get_obs())
@@ -82,12 +83,14 @@ def do_env_rollout(env_name, start_state, act_list):
             states.append(e.get_env_state())
             s, r, d, ifo = e.step(act[-1])
             rewards.append(r)
+            next_obs.append(s)
 
         path = dict(observations=np.array(obs),
                     actions=np.array(act),
                     rewards=np.array(rewards),
                     env_infos=tensor_utils.stack_tensor_dict_list(env_infos),
-                    states=states)
+                    states=states,
+                    next_observations=next_obs)
         paths.append(path)
 
     return paths

@@ -9,6 +9,8 @@ from trajopt.algos.trajopt_base import Trajectory
 from trajopt.utils import gather_paths_parallel
 from trajopt.utils import ReplayBuffer
 
+import torch
+
 class MPPI(Trajectory):
     def __init__(self, env, H, paths_per_cpu,
                  num_cpu=1,
@@ -44,10 +46,10 @@ class MPPI(Trajectory):
         if init_seq is not None and init_seq.shape == self.act_sequence.shape:
             self.act_sequence = init_seq
 
-    def update(self, paths):
+    def update(self, paths, use_critic=False):
         num_traj = len(paths)
         act = np.array([paths[i]["actions"] for i in range(num_traj)])
-        R = self.score_trajectory(paths)
+        R = self.score_trajectory(paths, use_critic=use_critic)
         S = np.exp(self.kappa*(R-np.max(R)))
 
         # blend the action sequence
@@ -73,12 +75,16 @@ class MPPI(Trajectory):
         else:
             self.act_sequence[-1] = self.mean.copy()
 
-    def score_trajectory(self, paths):
+    def score_trajectory(self, paths, use_critic=False):
         scores = np.zeros(len(paths))
         for i in range(len(paths)):
             scores[i] = 0.0
-            for t in range(paths[i]["rewards"].shape[0]):
-                scores[i] += (self.gamma**t)*paths[i]["rewards"][t]
+            if use_critic:
+                for t in range(paths[i]["critic_rewards"].shape[0]):
+                    scores[i] += (self.gamma**t)*paths[i]["critic_rewards"][t]
+            else:
+                for t in range(paths[i]["rewards"].shape[0]):
+                    scores[i] += (self.gamma**t)*paths[i]["rewards"][t]
         return scores
 
     def do_rollouts(self, seed):
@@ -92,7 +98,7 @@ class MPPI(Trajectory):
                                       )
         return paths
 
-    def train_step(self, niter=1):
+    def train_step(self, critic=None, niter=1):
         # states = []
         # actions = []
         # rewards = []
@@ -101,27 +107,29 @@ class MPPI(Trajectory):
         for _ in range(niter):
             paths = self.do_rollouts(self.seed+t)
 
-            for path in paths:
-                for i in range(len(path["states"]) - 1):
-                    replay_tuples.append(
-                        ReplayBuffer.Tuple(path["states"][i],
-                                           path["actions"][i],
-                                           path["rewards"][i],
-                                           path["states"][i + 1]))
+            for i, path in enumerate(paths):
+                critic_rewards = []
 
-            # s = np.concatenate([paths[i]["states"] for i in range(len(paths))])
-            # a = np.concatenate([paths[i]["actions"] for i in range(len(paths))])
-            # r = np.concatenate([paths[i]["rewards"] for i in range(len(paths))])
-            # if len(states) == 0:
-            #     states = s
-            #     actions = a
-            #     rewards = r
-            # else:
-            #     states = np.concatenate((states, s))
-            #     actions = np.concatenate((actions, a))
-            #     rewards = np.concatenate((rewards, r))
+                for j in range(len(path["states"])):
+                    if j < len(path["states"]) - 1:
+                        replay_tuples.append(
+                            ReplayBuffer.Tuple(path["states"][j],
+                                               path["actions"][j],
+                                               path["rewards"][j],
+                                               path["states"][j + 1]))
 
-            self.update(paths)
+                    # Compute state values based on Critic
+                    if critic is not None:
+                        # critic_state = critic.compress_state(
+                        #     path["states"][j + 1])
+
+                        # HACK to get value of next state, s'
+                        critic_state = torch.tensor(path["next_observations"][j][:14], dtype=torch.float32)
+                        critic_reward = critic(critic_state).detach().numpy()
+                        critic_rewards.append(critic_reward)
+                paths[i]["critic_rewards"] = np.array(critic_rewards)
+
+            self.update(paths, use_critic=(critic is not None))
         self.advance_time()
         print(len(replay_tuples))
         return replay_tuples

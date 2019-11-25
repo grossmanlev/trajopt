@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+import argparse
 import os
 from datetime import datetime
 
@@ -42,31 +43,41 @@ class Critic(nn.Module):
 
         self.linear1 = nn.Linear(STATE_DIM, 128)  # TODO: 7DOF qpos and qvel
 
-        # self.linear2 = nn.Linear(128, 32)
-        self.linear2 = nn.Linear(128, 1)
+        self.linear2 = nn.Linear(128, 128)
+        self.linear3 = nn.Linear(128, 1)
 
     def forward(self, x):
         x = torch.tanh(self.linear1(x))
+        x = torch.tanh(self.linear2(x))
 
         # critic: evaluates being in the state s_t
-        value = self.linear2(x)
+        value = self.linear3(x)
 
         return value
 
+    def compress_state(self, state):
+        """ Put a reacher_env state into a compressed format """
+        return np.concatenate((state["qp"], state["qv"]))
 
-def compress_states(tuples):
-    """ Put states into array representation, so everything is an np.array """
-    for i in range(len(tuples)):
-        state = np.concatenate(
-            (tuples[i].state["qp"], tuples[i].state["qv"]))
-        next_state = np.concatenate(
-            (tuples[i].next_state["qp"], tuples[i].next_state["qv"]))
-        tuples[i] = ReplayBuffer.Tuple(
-            state, tuples[i].action, tuples[i].reward, next_state)
-    return tuples
+    def compress_states(self, tuples):
+        """ Put states into array representation, so everything is an np.array """
+        for i in range(len(tuples)):
+            state = self.compress_state(tuples[i].state)
+            np.concatenate(
+                (tuples[i].state["qp"], tuples[i].state["qv"]))
+            next_state = np.concatenate(
+                (tuples[i].next_state["qp"], tuples[i].next_state["qv"]))
+            tuples[i] = ReplayBuffer.Tuple(
+                state, tuples[i].action, tuples[i].reward, next_state)
+        return tuples
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--critic', default=None, help='path to critic model (.pt) file')
+    args = parser.parse_args()
+    print(args.critic)
+
     e = get_environment(ENV_NAME)
     e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
@@ -77,8 +88,12 @@ if __name__ == '__main__':
                  kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
                  default_act='mean', seed=SEED)
 
-    replay_buffer = ReplayBuffer(max_size=1000000)
-    critic = Critic()
+    replay_buffer = ReplayBuffer(max_size=100000)
+
+    critic = Critic(num_iters=4000)
+    if args.critic is not None:
+        critic.load_state_dict(torch.load(args.critic))
+        critic.eval()
     critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
@@ -88,65 +103,71 @@ if __name__ == '__main__':
     for t in tqdm(range(H_total)):
 
         # Actor step
-        tuples = agent.train_step(niter=N_ITER)
+        tuples = agent.train_step(critic=critic, niter=N_ITER)
 
         # Add new transitions into replay buffer
-        tuples = compress_states(tuples)
+        tuples = critic.compress_states(tuples)
         replay_buffer.concatenate(tuples)
 
-        # Critic step
-        for i in range(critic.num_iters):
-            minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
+        if args.critic is None:
+            # Critic step
+            for i in range(critic.num_iters):
+                minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
 
-            # unpack minibatch
-            state_batch = torch.stack(tuple(torch.tensor(d.state, dtype=torch.float32) for d in minibatch))
-            action_batch = torch.stack(tuple(torch.tensor(d.action, dtype=torch.float32) for d in minibatch))
-            reward_batch = torch.tensor([d.reward for d in minibatch], dtype=torch.float32)
-            # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
-            next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
+                # unpack minibatch
+                state_batch = torch.stack(tuple(torch.tensor(d.state, dtype=torch.float32) for d in minibatch))
+                action_batch = torch.stack(tuple(torch.tensor(d.action, dtype=torch.float32) for d in minibatch))
+                reward_batch = torch.tensor([d.reward for d in minibatch], dtype=torch.float32)
+                # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
+                next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
 
-            if torch.cuda.is_available():  # put on GPU if CUDA is available
-                state_batch = state_batch.cuda()
-                action_batch = action_batch.cuda()
-                reward_batch = reward_batch.cuda()
-                next_state_batch = next_state_batch.cuda()
+                if torch.cuda.is_available():  # put on GPU if CUDA is available
+                    state_batch = state_batch.cuda()
+                    action_batch = action_batch.cuda()
+                    reward_batch = reward_batch.cuda()
+                    next_state_batch = next_state_batch.cuda()
 
-            # get output for the next state
-            output_batch = critic(next_state_batch)
+                # get output for the next state
+                output_batch = critic(next_state_batch)
 
-            # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
-            y_batch = []
-            for j in range(len(minibatch)):
-                if abs(reward_batch[j]) < 1.0:
-                    y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
-                else:
-                    y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
-            y_batch = torch.stack(tuple(y_batch))
-            # y_batch = torch.stack(
-            #     tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
-            #           else reward_batch[i] + critic.gamma * output_batch[i]
-            #           for i in range(len(minibatch))))
+                # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
+                y_batch = []
+                for j in range(len(minibatch)):
+                    if abs(reward_batch[j]) < 2.0 or True:
+                        y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
+                    else:
+                        y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
+                y_batch = torch.stack(tuple(y_batch))
+                # y_batch = torch.stack(
+                #     tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
+                #           else reward_batch[i] + critic.gamma * output_batch[i]
+                #           for i in range(len(minibatch))))
 
-            # extract V
-            # v_batch = torch.sum(critic(state_batch), dim=1)  # ??
-            v_batch = critic(state_batch)
+                # extract V
+                # v_batch = torch.sum(critic(state_batch), dim=1)  # ??
+                v_batch = critic(state_batch)
 
-            # PyTorch accumulates gradients by default, so they need to be reset in each pass
-            optimizer.zero_grad()
+                # PyTorch accumulates gradients by default, so they need to be reset in each pass
+                optimizer.zero_grad()
 
-            # import pdb; pdb.set_trace()
-            # returns a new Tensor, detached from the current graph, the result will never require gradient
-            y_batch = y_batch.detach()
+                # import pdb; pdb.set_trace()
+                # returns a new Tensor, detached from the current graph, the result will never require gradient
+                y_batch = y_batch.detach()
 
-            # calculate loss
-            loss = criterion(v_batch, y_batch)
+                # calculate loss
+                loss = criterion(v_batch, y_batch)
 
-            # do backward pass
-            loss.backward()
-            optimizer.step()
+                # do backward pass
+                loss.backward()
+                optimizer.step()
 
-            if i % 1000 == 0:
-                print('Loss: {}'.format(loss))
+                if i % 1000 == 0:
+                    print('Loss: {}'.format(loss))
+                    s0 = torch.zeros(STATE_DIM)
+                    sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
+                                       0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                    print('{}'.format(critic(s0)))
+                    print('{}'.format(critic(sf)))
 
         if t % 25 == 0 and t > 0:
             print("==============>>>>>>>>>>> saving progress ")

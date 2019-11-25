@@ -1,0 +1,5 @@
+replay_buffer = ReplayBuffer(max_size=100000)
+
+critic = Critic(num_iters=4000)
+
+optimizer = optim.Adam(critic.parameters(), lr=1e-2)
