@@ -138,8 +138,11 @@ if __name__ == '__main__':
 
         if t % 25 == 0 and t > 0:
             print("==============>>>>>>>>>>> saving progress ")
-            pickle.dump(agent, open(PICKLE_FILE, 'wb'))
-            torch.save(critic.state_dict(), MODEL_PATH)
+            # Only save Critic model if it's training
+            if args.train:
+                torch.save(critic.state_dict(), MODEL_PATH)
+            else:
+                pickle.dump(agent, open(PICKLE_FILE, 'wb'))
 
     # Save the replay buffer
     if args.save_buffer:
