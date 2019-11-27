@@ -1,0 +1,4 @@
+batch_size = 32
+num_iters = 10000
+
+1e-2, tanh activations

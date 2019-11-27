@@ -1,6 +1,6 @@
 from trajopt.algos.mppi import MPPI
 from trajopt.envs.utils import get_environment
-from trajopt.utils import ReplayBuffer
+from trajopt.utils import ReplayBuffer, Tuple
 from tqdm import tqdm
 import time as timer
 import numpy as np
@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from trajopt.models.critic_nets import Critic
 
 import argparse
 import os
@@ -23,6 +24,7 @@ os.mkdir(DATA_DIR + '/' + DATE_STRING)
 ENV_NAME = 'reacher_7dof'
 PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_mppi.pickle'
 MODEL_PATH = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_critic.pt'
+REPLAY_PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_replay.pickle'
 SEED = 12345
 N_ITER = 5
 H_total = 100
@@ -30,53 +32,15 @@ STATE_DIM = 14
 # =======================================
 
 
-class Critic(nn.Module):
-    """
-    implements both actor and critic in one model
-    """
-    def __init__(self, gamma=1.0, num_iters=10000, batch_size=32):
-        super(Critic, self).__init__()
-
-        self.gamma = gamma
-        self.num_iters = num_iters
-        self.batch_size = batch_size
-
-        self.linear1 = nn.Linear(STATE_DIM, 128)  # TODO: 7DOF qpos and qvel
-
-        self.linear2 = nn.Linear(128, 128)
-        self.linear3 = nn.Linear(128, 1)
-
-    def forward(self, x):
-        x = torch.tanh(self.linear1(x))
-        x = torch.tanh(self.linear2(x))
-
-        # critic: evaluates being in the state s_t
-        value = self.linear3(x)
-
-        return value
-
-    def compress_state(self, state):
-        """ Put a reacher_env state into a compressed format """
-        return np.concatenate((state["qp"], state["qv"]))
-
-    def compress_states(self, tuples):
-        """ Put states into array representation, so everything is an np.array """
-        for i in range(len(tuples)):
-            state = self.compress_state(tuples[i].state)
-            np.concatenate(
-                (tuples[i].state["qp"], tuples[i].state["qv"]))
-            next_state = np.concatenate(
-                (tuples[i].next_state["qp"], tuples[i].next_state["qv"]))
-            tuples[i] = ReplayBuffer.Tuple(
-                state, tuples[i].action, tuples[i].reward, next_state)
-        return tuples
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--critic', default=None, help='path to critic model (.pt) file')
+    parser.add_argument('--critic', default=None,
+                        help='path to critic model (.pt) file')
+    parser.add_argument('--train', default=False,
+                        help='train the critic net?')
+    parser.add_argument('--save_buffer', default=False,
+                        help='save the replay buffer?')
     args = parser.parse_args()
-    print(args.critic)
 
     e = get_environment(ENV_NAME)
     e.reset_model(seed=SEED)
@@ -88,12 +52,15 @@ if __name__ == '__main__':
                  kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
                  default_act='mean', seed=SEED)
 
-    replay_buffer = ReplayBuffer(max_size=100000)
+    replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=4000)
+    critic = Critic(num_iters=3000)
+    loaded_critic = None
     if args.critic is not None:
-        critic.load_state_dict(torch.load(args.critic))
-        critic.eval()
+        loaded_critic = Critic()
+        loaded_critic.load_state_dict(torch.load(args.critic))
+        loaded_critic.eval()
+        loaded_critic.float()
     critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
@@ -103,13 +70,13 @@ if __name__ == '__main__':
     for t in tqdm(range(H_total)):
 
         # Actor step
-        tuples = agent.train_step(critic=critic, niter=N_ITER)
+        tuples = agent.train_step(critic=loaded_critic, niter=N_ITER)
 
         # Add new transitions into replay buffer
         tuples = critic.compress_states(tuples)
         replay_buffer.concatenate(tuples)
 
-        if args.critic is None:
+        if args.train:
             # Critic step
             for i in range(critic.num_iters):
                 minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
@@ -173,6 +140,12 @@ if __name__ == '__main__':
             print("==============>>>>>>>>>>> saving progress ")
             pickle.dump(agent, open(PICKLE_FILE, 'wb'))
             torch.save(critic.state_dict(), MODEL_PATH)
+
+    # Save the replay buffer
+    if args.save_buffer:
+        print("==============>>>>>>>>>>> saving replay buffer")
+        pickle.dump(replay_buffer, open(REPLAY_PICKLE_FILE, 'wb'))
+
 
     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
     # agent = pickle.load(open(PICKLE_FILE, 'rb'))

@@ -7,7 +7,7 @@ Uses a filtered action sequence to generate smooth motions.
 import numpy as np
 from trajopt.algos.trajopt_base import Trajectory
 from trajopt.utils import gather_paths_parallel
-from trajopt.utils import ReplayBuffer
+from trajopt.utils import ReplayBuffer, Tuple
 
 import torch
 
@@ -113,10 +113,10 @@ class MPPI(Trajectory):
                 for j in range(len(path["states"])):
                     if j < len(path["states"]) - 1:
                         replay_tuples.append(
-                            ReplayBuffer.Tuple(path["states"][j],
-                                               path["actions"][j],
-                                               path["rewards"][j],
-                                               path["states"][j + 1]))
+                            Tuple(path["states"][j],
+                                  path["actions"][j],
+                                  path["rewards"][j],
+                                  path["states"][j + 1]))
 
                     # Compute state values based on Critic
                     if critic is not None:
@@ -131,6 +131,5 @@ class MPPI(Trajectory):
 
             self.update(paths, use_critic=(critic is not None))
         self.advance_time()
-        print(len(replay_tuples))
         return replay_tuples
         # return dict(states=states, actions=actions, rewards=rewards)

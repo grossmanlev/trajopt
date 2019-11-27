@@ -9,10 +9,12 @@ from trajopt import tensor_utils
 from trajopt.envs.utils import get_environment
 from collections import namedtuple
 
+Tuple = namedtuple("Tuple", ["state", "action", "reward", "next_state"])
+
 
 class ReplayBuffer(object):
     """Experience replay buffer class"""
-    Tuple = namedtuple("Tuple", ["state", "action", "reward", "next_state"])
+    # Tuple = namedtuple("Tuple", ["state", "action", "reward", "next_state"])
 
     def __init__(self, max_size=1000000):
         self.max_size = max_size
@@ -20,15 +22,15 @@ class ReplayBuffer(object):
 
     def append(self, tup):
         """ Append a single tuple at the end of the replay buffer """
-        assert(type(tup) == self.Tuple)
+        assert(type(tup) == Tuple)
         self.buffer.append(tup)
         if len(self.buffer) > self.max_size:
             self.buffer = self.buffer[(len(self.buffer) - self.max_size):]
 
     def concatenate(self, tuples):
         """ Concatenate a list of tuples at the end of the replay buffer """
-        assert((type(tuples) == list and type(tuples[0]) == self.Tuple)
-               or type(tuples) == self.Tuple)
+        assert((type(tuples) == list and type(tuples[0]) == Tuple)
+               or type(tuples) == Tuple)
         for tup in tuples:
             self.buffer.append(tup)
         if len(self.buffer) > self.max_size:
@@ -41,10 +43,10 @@ class ReplayBuffer(object):
         # Add state, action, reward, next_state tuples into buffer
         for i in range(len(history['states']) - 1):
             self.buffer.append(
-                self.Tuple(history['states'][i],
-                           history['actions'][i],
-                           history['rewards'][i],
-                           history['states'][i + 1]))
+                Tuple(history['states'][i],
+                      history['actions'][i],
+                      history['rewards'][i],
+                      history['states'][i + 1]))
 
         # If buffer is overflowed, pop first (len(self.buffer) - self.max_size)
         if len(self.buffer) > self.max_size:
