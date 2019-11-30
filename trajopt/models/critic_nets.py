@@ -20,7 +20,8 @@ class Critic(nn.Module):
         self.num_iters = num_iters
         self.batch_size = batch_size
 
-        self.activation = nn.Softplus()
+        self.tanh = torch.tanh
+        self.softplus = nn.Softplus()
 
         self.linear1 = nn.Linear(STATE_DIM, 128)  # TODO: 7DOF qpos and qvel
 
@@ -28,8 +29,8 @@ class Critic(nn.Module):
         self.linear3 = nn.Linear(128, 1)
 
     def forward(self, x):
-        x = torch.tanh(self.linear1(x))
-        x = torch.tanh(self.linear2(x))
+        x = self.softplus(self.linear1(x))
+        x = self.softplus(self.linear2(x))
 
         # critic: evaluates being in the state s_t
         value = self.linear3(x)

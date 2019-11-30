@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
 from trajopt.models.critic_nets import Critic
 
 import argparse
@@ -41,6 +42,9 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=32,
                         help='batch size for critic net')
     args = parser.parse_args()
+
+    # Writer will output to ./runs/ directory by default
+    writer = SummaryWriter()
 
     replay_buffer = pickle.load(open(args.replay_buffer, 'rb'))
 
@@ -103,6 +107,7 @@ if __name__ == '__main__':
 
         # calculate loss
         loss = criterion(v_batch, y_batch)
+        writer.add_scalar('Loss', loss, t)
 
         # do backward pass
         loss.backward()
