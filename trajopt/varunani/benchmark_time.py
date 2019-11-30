@@ -12,11 +12,12 @@ import os
 from datetime import datetime
 
 class Model(nn.Module):
-	def __init__(self,layers,nonlin=torch.tanh):
+	def __init__(self,layers,nonlin=nn.Tanh()):
 		super(Model, self).__init__()
 		layerslist = []
 		for i in range(len(layers)-1):
 			layerslist.append(nn.Linear(layers[i],layers[i+1]))
+			layerslist.append(nonlin)
 
 		self.netwk = nn.Sequential(*layerslist)
 
@@ -52,7 +53,8 @@ parser.add_argument('-bs','--batch_size', type=int, required=True) # size of bat
 parser.add_argument('-i','--iterations', type=int, required=True) # number of iterations to average out over
 parser.add_argument('-p','--passtype', type=str, required=True) # options: fwd, bwd, both
 parser.add_argument('-u','--update_bwd',type=bool,required=False) # options: True, False
-# Example command: python3 benchmark_time.py -l 14 128 128 1 -bs 32 -i 100 -p both -u False
+parser.add_argument('-a','--act_func',type=str,required=True) # options: tanh, ReLU, softmax
+# Example command: python3 benchmark_time.py -l 14 128 128 1 -bs 32 -i 100 -p both -u False -a tanh
 
 args = parser.parse_args()
 layers = args.layers
@@ -61,15 +63,23 @@ iters = args.iterations
 ups = False
 if args.update_bwd:
 	ups = args.update_bwd
+if args.act_func == 'tanh':
+	act_func = nn.Tanh()
+elif args.act_func == 'ReLU':
+	act_func = nn.ReLU()
+elif args.act_func == 'softmax':
+	act_func = nn.Softmax()
 
+print("NEW RUN:", layers, bs, iters, ups, act_func)
 
-model = Model(layers)
+model = Model(layers,nonlin=act_func)
+
+runtimefwd = 0
+runtimebwd = 0
+
 for j in range(iters):
 	X = torch.randn(bs,layers[0])
 	Y = torch.randn(bs)
-
-	runtimefwd = 0
-	runtimebwd = 0
 
 	if (args.passtype == 'fwd') or (args.passtype == 'both'):
 		runtimefwd += bmark_time(model,X,Y,fwd=True,ups=ups)
