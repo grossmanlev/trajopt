@@ -117,16 +117,25 @@ class MPPI(Trajectory):
                                   path["actions"][j],
                                   path["rewards"][j],
                                   path["states"][j + 1]))
-
                     # Compute state values based on Critic
                     if critic is not None:
-                        # critic_state = critic.compress_state(
-                        #     path["states"][j + 1])
-
                         # HACK to get value of next state, s'
                         critic_state = torch.tensor(path["next_observations"][j][:14], dtype=torch.float32)
                         critic_reward = critic(critic_state).detach().numpy()
                         critic_rewards.append(critic_reward)
+                        # if j < len(path["states"]) - 1:
+                        #     replay_tuples.append(
+                        #         Tuple(path["states"][j],
+                        #               path["actions"][j],
+                        #               critic_reward,
+                        #               path["states"][j + 1]))
+                    # else:
+                    #     if j < len(path["states"]) - 1:
+                    #         replay_tuples.append(
+                    #             Tuple(path["states"][j],
+                    #                   path["actions"][j],
+                    #                   path["rewards"][j],
+                    #                   path["states"][j + 1]))
                 paths[i]["critic_rewards"] = np.array(critic_rewards)
 
             self.update(paths, use_critic=(critic is not None))

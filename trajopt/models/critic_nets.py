@@ -13,7 +13,7 @@ class Critic(nn.Module):
     """
     implements both actor and critic in one model
     """
-    def __init__(self, gamma=1.0, num_iters=10000, batch_size=32):
+    def __init__(self, gamma=1.0, num_iters=10000, batch_size=128):
         super(Critic, self).__init__()
 
         self.gamma = gamma
@@ -22,15 +22,18 @@ class Critic(nn.Module):
 
         self.tanh = torch.tanh
         self.softplus = nn.Softplus()
+        self.relu = nn.ReLU()
 
         self.linear1 = nn.Linear(STATE_DIM, 128)  # TODO: 7DOF qpos and qvel
 
         self.linear2 = nn.Linear(128, 128)
+        # self.linear2_5 = nn.Linear(128, 128)
         self.linear3 = nn.Linear(128, 1)
 
     def forward(self, x):
-        x = self.softplus(self.linear1(x))
-        x = self.softplus(self.linear2(x))
+        x = self.tanh(self.linear1(x))
+        x = self.tanh(self.linear2(x))
+        # x = self.relu(self.linear2_5(x))
 
         # critic: evaluates being in the state s_t
         value = self.linear3(x)

@@ -5,13 +5,14 @@ from mujoco_py import MjViewer
 import os
 
 class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
-    def __init__(self):
+    def __init__(self, sparse_reward=False):
 
         # trajopt specific attributes
         self.env_name = 'reacher_7dof'
         self.seeding = False
         self.real_step = True
         self.env_timestep = 0
+        self.sparse_reward = sparse_reward
 
         # placeholder
         self.hand_sid = -2
@@ -32,10 +33,19 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         target_pos = self.data.site_xpos[self.target_sid]
         dist = np.linalg.norm(hand_pos-target_pos)
         reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
+        if self.sparse_reward:
+            if dist < 0.5:
+                reward = 1.0
+            else:
+                reward = -10.0
+        else:
+            reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
         ob = self._get_obs()
         # keep track of env timestep (needed for continual envs)
         self.env_timestep += 1
-        return ob, reward, False, self.get_env_infos()
+        rtn_dct = self.get_env_infos()
+        # rtn_dct['sparse_reward'] = 
+        return ob, reward, False, rtn_dct
 
     def step(self, a):
         # overloading to preserve backwards compatibility

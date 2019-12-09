@@ -1,6 +1,7 @@
 from trajopt.algos.mppi import MPPI
 from trajopt.envs.utils import get_environment
 from trajopt.utils import ReplayBuffer, Tuple
+from trajopt.models.critic_nets import Critic
 from tqdm import tqdm
 import time as timer
 import numpy as np
@@ -10,7 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from trajopt.models.critic_nets import Critic
+from torch.utils.tensorboard import SummaryWriter
+
 
 import argparse
 import os
@@ -18,6 +20,7 @@ from datetime import datetime
 
 # =======================================
 DATA_DIR = 'data'
+AC_DIR = 'ac_tests'
 now = datetime.now()
 DATE_STRING = now.strftime("%m:%d:%Y-%H:%M:%S")
 os.mkdir(DATA_DIR + '/' + DATE_STRING)
@@ -36,13 +39,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--critic', default=None,
                         help='path to critic model (.pt) file')
-    parser.add_argument('--train', default=False,
+    parser.add_argument('--train', action='store_true',
                         help='train the critic net?')
-    parser.add_argument('--save_buffer', default=False,
+    parser.add_argument('--save_buffer', action='store_true',
                         help='save the replay buffer?')
+    parser.add_argument('--target', action='store_true')
     args = parser.parse_args()
 
+    # Writer will output to ./runs/ directory by default
+    writer = SummaryWriter()
+
     e = get_environment(ENV_NAME)
+    # e.sparse_reward = True
     e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
@@ -54,7 +62,7 @@ if __name__ == '__main__':
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=3000)
+    critic = Critic(num_iters=12000)
     loaded_critic = None
     if args.critic is not None:
         loaded_critic = Critic()
@@ -63,22 +71,39 @@ if __name__ == '__main__':
         loaded_critic.float()
     critic.float()
 
+    # Set up target critic network
+    if args.target:
+        target_critic = Critic(num_iters=12000, batch_size=32, gamma=0.99)
+        target_critic.load_state_dict(critic.state_dict())
+        target_critic.eval()
+        target_critic.float()
+
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
     criterion = nn.MSELoss()
 
-    ts = timer.time()
-    for t in tqdm(range(H_total)):
+    for x in range(5):
 
-        # Actor step
-        tuples = agent.train_step(critic=loaded_critic, niter=N_ITER)
+        ts = timer.time()
+        for t in tqdm(range(H_total)):
 
-        # Add new transitions into replay buffer
-        tuples = critic.compress_states(tuples)
-        replay_buffer.concatenate(tuples)
+            # Actor step
+            tuples = agent.train_step(critic=loaded_critic, niter=N_ITER)
+
+            # Add new transitions into replay buffer
+            tuples = critic.compress_states(tuples)
+            replay_buffer.concatenate(tuples)
+
+        print("Trajectory reward = %f" % np.sum(agent.sol_reward))
+        writer.add_scalar('Trajectory Return', np.sum(agent.sol_reward), x)
+
+        SAVE_DIR = AC_DIR + '/' + DATE_STRING
+        os.mkdir(SAVE_DIR)
+        pickle.dump(agent, open(SAVE_DIR + '/ac_test_agent_{}.pickle'.format(x), 'wb'))
+        torch.save(critic.state_dict(), SAVE_DIR + '/ac_test_critic_{}.pt')
 
         if args.train:
             # Critic step
-            for i in range(critic.num_iters):
+            for i in tqdm(range(critic.num_iters)):
                 minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
 
                 # unpack minibatch
@@ -95,7 +120,10 @@ if __name__ == '__main__':
                     next_state_batch = next_state_batch.cuda()
 
                 # get output for the next state
-                output_batch = critic(next_state_batch)
+                if args.target:
+                    output_batch = target_critic(next_state_batch)
+                else:
+                    output_batch = critic(next_state_batch)
 
                 # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
                 y_batch = []
@@ -136,19 +164,16 @@ if __name__ == '__main__':
                     print('{}'.format(critic(s0)))
                     print('{}'.format(critic(sf)))
 
-        if t % 25 == 0 and t > 0:
-            print("==============>>>>>>>>>>> saving progress ")
-            # Only save Critic model if it's training
-            if args.train:
-                torch.save(critic.state_dict(), MODEL_PATH)
-            else:
-                pickle.dump(agent, open(PICKLE_FILE, 'wb'))
+                if args.target and i % 4000 == 0:
+                    # Update target critic network
+                    target_critic.load_state_dict(critic.state_dict())
+                    target_critic.eval()
+                    target_critic.float()
 
     # Save the replay buffer
     if args.save_buffer:
         print("==============>>>>>>>>>>> saving replay buffer")
         pickle.dump(replay_buffer, open(REPLAY_PICKLE_FILE, 'wb'))
-
 
     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
     # agent = pickle.load(open(PICKLE_FILE, 'rb'))

@@ -35,12 +35,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('replay_buffer', default=None,
                         help='path to ReplayBuffer (.pickle) file')
-    parser.add_argument('--critic', type=bool, default=None,
+    parser.add_argument('--critic', type=str, default=None,
                         help='path to critic model (.pt) file')
     parser.add_argument('--num_iters', type=int, default=10000,
                         help='number of iterations for critic training')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='batch size for critic net')
+    parser.add_argument('--target', action='store_true')
     args = parser.parse_args()
 
     # Writer will output to ./runs/ directory by default
@@ -48,14 +49,20 @@ if __name__ == '__main__':
 
     replay_buffer = pickle.load(open(args.replay_buffer, 'rb'))
 
-    critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size)
+    critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.99)
     loaded_critic = None
     if args.critic is not None:
-        loaded_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size)
-        loaded_critic.load_state_dict(torch.load(args.critic))
-        loaded_critic.eval()
-        loaded_critic.float()
+        # loaded_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size)
+        critic.load_state_dict(torch.load(args.critic))
+        critic.eval()
     critic.float()
+
+    # Set up target critic network
+    if args.target:
+        target_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.99)
+        target_critic.load_state_dict(critic.state_dict())
+        target_critic.eval()
+        target_critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
     criterion = nn.MSELoss()
@@ -80,12 +87,15 @@ if __name__ == '__main__':
             next_state_batch = next_state_batch.cuda()
 
         # get output for the next state
-        output_batch = critic(next_state_batch)
+        if args.target:
+            output_batch = target_critic(next_state_batch)
+        else:
+            output_batch = critic(next_state_batch)
 
         # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
         y_batch = []
         for j in range(len(minibatch)):
-            if abs(reward_batch[j]) < 2.0 or True:
+            if abs(reward_batch[j]) < 2.0:
                 y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
             else:
                 y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
@@ -120,6 +130,13 @@ if __name__ == '__main__':
                                0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
             print('{}'.format(critic(s0)))
             print('{}'.format(critic(sf)))
+
+        if t % 4000 == 0:
+            # Update target critic network
+            if args.target:
+                target_critic.load_state_dict(critic.state_dict())
+                target_critic.eval()
+                target_critic.float()
 
         # if t % (critic.num_iters // 4) == 0:
         #     print("==============>>>>>>>>>>> saving progress ")
