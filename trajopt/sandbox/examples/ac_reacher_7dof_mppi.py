@@ -21,9 +21,13 @@ from datetime import datetime
 # =======================================
 DATA_DIR = 'data'
 AC_DIR = 'ac_tests'
+
 now = datetime.now()
 DATE_STRING = now.strftime("%m:%d:%Y-%H:%M:%S")
 os.mkdir(DATA_DIR + '/' + DATE_STRING)
+AC_SAVE_DIR = AC_DIR + '/' + DATE_STRING
+os.mkdir(AC_SAVE_DIR)
+
 ENV_NAME = 'reacher_7dof'
 PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_mppi.pickle'
 MODEL_PATH = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_critic.pt'
@@ -56,13 +60,13 @@ if __name__ == '__main__':
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
 
-    agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
-                 kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
-                 default_act='mean', seed=SEED)
+    # agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
+    #              kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
+    #              default_act='mean', seed=SEED)
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=12000)
+    critic = Critic(num_iters=2000)
     loaded_critic = None
     if args.critic is not None:
         loaded_critic = Critic()
@@ -73,7 +77,7 @@ if __name__ == '__main__':
 
     # Set up target critic network
     if args.target:
-        target_critic = Critic(num_iters=12000, batch_size=32, gamma=0.99)
+        target_critic = Critic(num_iters=2000, batch_size=128)
         target_critic.load_state_dict(critic.state_dict())
         target_critic.eval()
         target_critic.float()
@@ -81,13 +85,21 @@ if __name__ == '__main__':
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
     criterion = nn.MSELoss()
 
-    for x in range(5):
+    for x in range(100):
+
+        e.reset_model(seed=SEED)
+        agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
+             kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
+             default_act='mean', seed=SEED)
 
         ts = timer.time()
         for t in tqdm(range(H_total)):
 
             # Actor step
-            tuples = agent.train_step(critic=loaded_critic, niter=N_ITER)
+            if x == 0:
+                tuples = agent.train_step(critic=None, niter=N_ITER)
+            else:
+                tuples = agent.train_step(critic=critic, niter=N_ITER)
 
             # Add new transitions into replay buffer
             tuples = critic.compress_states(tuples)
@@ -96,10 +108,8 @@ if __name__ == '__main__':
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
         writer.add_scalar('Trajectory Return', np.sum(agent.sol_reward), x)
 
-        SAVE_DIR = AC_DIR + '/' + DATE_STRING
-        os.mkdir(SAVE_DIR)
-        pickle.dump(agent, open(SAVE_DIR + '/ac_test_agent_{}.pickle'.format(x), 'wb'))
-        torch.save(critic.state_dict(), SAVE_DIR + '/ac_test_critic_{}.pt')
+        pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}.pickle'.format(x), 'wb'))
+        torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}.pt'.format(x))
 
         if args.train:
             # Critic step
@@ -112,12 +122,6 @@ if __name__ == '__main__':
                 reward_batch = torch.tensor([d.reward for d in minibatch], dtype=torch.float32)
                 # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
                 next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
-
-                if torch.cuda.is_available():  # put on GPU if CUDA is available
-                    state_batch = state_batch.cuda()
-                    action_batch = action_batch.cuda()
-                    reward_batch = reward_batch.cuda()
-                    next_state_batch = next_state_batch.cuda()
 
                 # get output for the next state
                 if args.target:
@@ -164,7 +168,7 @@ if __name__ == '__main__':
                     print('{}'.format(critic(s0)))
                     print('{}'.format(critic(sf)))
 
-                if args.target and i % 4000 == 0:
+                if args.target and i % 250 == 0:
                     # Update target critic network
                     target_critic.load_state_dict(critic.state_dict())
                     target_critic.eval()
