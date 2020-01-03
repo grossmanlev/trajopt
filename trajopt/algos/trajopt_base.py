@@ -49,4 +49,5 @@ class Trajectory:
             # print(self.env.data.site_xpos[self.env.hand_sid])
             # print('{}: {}'.format(k, self.sol_state[k]))
             self.env.step(self.sol_act[k])
+            # self.env.render()
         self.env.mujoco_render_frames = False
