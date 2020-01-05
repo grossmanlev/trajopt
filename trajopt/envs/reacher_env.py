@@ -4,6 +4,7 @@ from trajopt.envs import mujoco_env
 from mujoco_py import MjViewer
 import os
 
+
 class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self, sparse_reward=False):
 
@@ -27,6 +28,9 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.hand_sid = self.model.site_name2id("finger")
         self.target_sid = self.model.site_name2id("target")
 
+        # self.init_qpos[0] = -1.0
+        # self.init_qpos[1] = 1.0
+
     def _step(self, a):
         self.do_simulation(a, self.frame_skip)
         hand_pos = self.data.site_xpos[self.hand_sid]
@@ -46,7 +50,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # keep track of env timestep (needed for continual envs)
         self.env_timestep += 1
         rtn_dct = self.get_env_infos()
-        # rtn_dct['sparse_reward'] = 
+        # rtn_dct['sparse_reward'] =
         return ob, reward, False, rtn_dct
 
     def step(self, a):
