@@ -4,7 +4,7 @@ from trajopt.envs.continual_reacher_env import ContinualReacher7DOFEnv
 from trajopt.envs.hopper import HopperEnv
 
 
-def get_environment(env_name, sparse_reward=False):
+def get_environment(env_name, sparse_reward=True):
     if env_name == 'reacher_7dof':
         return Reacher7DOFEnv(sparse_reward=sparse_reward)
     elif env_name == 'reacher_2dof':

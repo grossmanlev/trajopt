@@ -5,7 +5,7 @@ from gym.envs.mujoco import mujoco_env
 from mujoco_py.builder import MujocoException
 
 from .assets import kuka_asset_dir
-from gym_kuka_mujoco.controllers import controller_registry
+from trajopt.controllers import controller_registry
 
 class KukaEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     default_info = dict()
