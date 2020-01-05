@@ -60,7 +60,7 @@ class MPPI(Trajectory):
     def advance_time(self, act_sequence=None):
         act_sequence = self.act_sequence if act_sequence is None else act_sequence
         # accept first action and step
-        self.sol_act.append(act_sequence[0])
+        self.sol_act.append(act_sequence[0].copy())
         state_now = self.sol_state[-1].copy()
         self.env.set_env_state(state_now)
         _, r, _, _ = self.env.step(act_sequence[0])
@@ -98,7 +98,7 @@ class MPPI(Trajectory):
                                       )
         return paths
 
-    def train_step(self, critic=None, niter=1):
+    def train_step(self, critic=None, niter=1, act_sequence=None):
         # states = []
         # actions = []
         # rewards = []
@@ -139,6 +139,6 @@ class MPPI(Trajectory):
                 paths[i]["critic_rewards"] = np.array(critic_rewards)
 
             self.update(paths, use_critic=(critic is not None))
-        self.advance_time()
+        self.advance_time(act_sequence=act_sequence)
         return replay_tuples
         # return dict(states=states, actions=actions, rewards=rewards)

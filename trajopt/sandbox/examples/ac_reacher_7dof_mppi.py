@@ -53,12 +53,14 @@ if __name__ == '__main__':
     # Writer will output to ./runs/ directory by default
     writer = SummaryWriter()
 
-    e = get_environment(ENV_NAME)
+    e = get_environment(ENV_NAME, sparse_reward=True)
     # e.sparse_reward = True
     e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
+
+    # e_sparse = get_environment(ENV_NAME, sparse_reward=True)
 
     # agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
     #              kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
@@ -87,10 +89,16 @@ if __name__ == '__main__':
 
     for x in range(100):
 
-        e.reset_model(seed=SEED)
-        agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
-             kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
-             default_act='mean', seed=SEED)
+        if x == 0:
+            e.reset_model(seed=SEED)
+            agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
+                 kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
+                 default_act='mean', seed=SEED)
+        else:
+            e_sparse.reset_model(seed=SEED)
+            agent = MPPI(e_sparse, H=16, paths_per_cpu=40, num_cpu=1,
+                 kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
+                 default_act='mean', seed=SEED)    
 
         ts = timer.time()
         for t in tqdm(range(H_total)):
@@ -100,7 +108,7 @@ if __name__ == '__main__':
                 tuples = agent.train_step(critic=None, niter=N_ITER)
             else:
                 tuples = agent.train_step(critic=critic, niter=N_ITER)
-
+            # tuples = agent.train_step(critic=critic, niter=N_ITER)
             # Add new transitions into replay buffer
             tuples = critic.compress_states(tuples)
             replay_buffer.concatenate(tuples)

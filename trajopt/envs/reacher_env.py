@@ -34,7 +34,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         dist = np.linalg.norm(hand_pos-target_pos)
         reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
         if self.sparse_reward:
-            if dist < 0.2:
+            if dist < 0.05:
                 reward = 100.0
             elif dist > 0.8:
                 reward = -100.0
