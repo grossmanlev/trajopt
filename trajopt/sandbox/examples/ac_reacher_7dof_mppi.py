@@ -36,6 +36,7 @@ SEED = 12345
 N_ITER = 5
 H_total = 100
 STATE_DIM = 14
+H = 16
 # =======================================
 
 
@@ -48,6 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_buffer', action='store_true',
                         help='save the replay buffer?')
     parser.add_argument('--target', action='store_true')
+    parser.add_argument('--eta', default=0.9, type=float)
     args = parser.parse_args()
 
     # Writer will output to ./runs/ directory by default
@@ -65,6 +67,10 @@ if __name__ == '__main__':
     # agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
     #              kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
     #              default_act='mean', seed=SEED)
+
+    good_agent = pickle.load(open('116_agent.pickle', 'rb'))
+    sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
+    init_seq = sol_actions[:H]
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
@@ -87,27 +93,58 @@ if __name__ == '__main__':
     optimizer = optim.Adam(critic.parameters(), lr=1e-2)
     criterion = nn.MSELoss()
 
-    for x in range(100):
+    eta = args.eta
+    limit = int((H_total + H) / 0.9)
 
-        if x == 0:
+    for x in range(100):
+        limit = int(limit * 0.9)
+        print('*'*36)
+        print('Round: {}, Limit: {}'.format(x, limit))
+        print()
+        if limit >= H:
             e.reset_model(seed=SEED)
-            agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
-                 kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
-                 default_act='mean', seed=SEED)
+            agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+                         kappa=25.0, gamma=1.0, mean=mean,
+                         filter_coefs=filter_coefs,
+                         default_act='mean', seed=SEED,
+                         init_seq=init_seq)
         else:
-            e_sparse.reset_model(seed=SEED)
-            agent = MPPI(e_sparse, H=16, paths_per_cpu=40, num_cpu=1,
-                 kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
-                 default_act='mean', seed=SEED)    
+            e.reset_model(seed=SEED)
+            agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+                         kappa=25.0, gamma=1.0, mean=mean,
+                         filter_coefs=filter_coefs,
+                         default_act='mean', seed=SEED,
+                         init_seq=None)
+
+        # if x == 0:
+        #     e.reset_model(seed=SEED)
+        #     agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+        #                  kappa=25.0, gamma=1.0, mean=mean,
+        #                  filter_coefs=filter_coefs,
+        #                  default_act='mean', seed=SEED,
+        #                  init_seq=init_seq)
+        # else:
+        #     e.reset_model(seed=SEED)
+        #     agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+        #                  kappa=25.0, gamma=1.0, mean=mean,
+        #                  filter_coefs=filter_coefs,
+        #                  default_act='mean', seed=SEED,
+        #                  init_seq=None)
 
         ts = timer.time()
         for t in tqdm(range(H_total)):
 
             # Actor step
-            if x == 0:
-                tuples = agent.train_step(critic=None, niter=N_ITER)
+            # if x == 0:
+            #     tuples = agent.train_step(critic=None, niter=N_ITER)
+            # else:
+            #     tuples = agent.train_step(critic=critic, niter=N_ITER)
+            if limit >= t + H:
+                tuples = agent.train_step(critic=critic, niter=N_ITER,
+                                          act_sequence=sol_actions[t:t+H])
             else:
-                tuples = agent.train_step(critic=critic, niter=N_ITER)
+                tuples = agent.train_step(critic=critic, niter=N_ITER,
+                                          act_sequence=None)
             # tuples = agent.train_step(critic=critic, niter=N_ITER)
             # Add new transitions into replay buffer
             tuples = critic.compress_states(tuples)
@@ -193,6 +230,6 @@ if __name__ == '__main__':
     print("Time for trajectory optimization = %f seconds" %(timer.time()-ts))
 
     # wait for user prompt before visualizing optimized trajectories
-    _ = input("Press enter to display optimized trajectory (will be played 10 times) : ")
-    for _ in range(100):
-        agent.animate_result()
+    # _ = input("Press enter to display optimized trajectory (will be played 10 times) : ")
+    # for _ in range(100):
+    #     agent.animate_result()
