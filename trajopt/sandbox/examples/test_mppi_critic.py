@@ -49,9 +49,9 @@ if __name__ == '__main__':
                              [-1.5, 1.5],
                              [-1.094, 0],
                              [-1.5, 1.5]])
-    joint_limits /= 4.0
+    joint_limits /= 1.0
 
-    total_reward = 0
+    rewards = []
     for _ in range(args.iters):
         random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         e.set_state(random_qpos, e.init_qvel)
@@ -68,10 +68,14 @@ if __name__ == '__main__':
             # Actor step
             agent.train_step(critic=critic, niter=N_ITER)
 
-        total_reward += np.sum(agent.sol_reward)
+        rewards.append(np.sum(agent.sol_reward))
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
 
-    print("Average reward = {}".format(total_reward / float(args.iters)))
+        # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
+        # for _ in range(10):
+        #     agent.animate_result()
+
+    print("Avg. Reward: {} ({})".format(np.mean(rewards), np.std(rewards)))
 
     # agent = pickle.load(open('116_agent.pickle', 'rb'))
 

@@ -38,7 +38,7 @@ class MPPI(Trajectory):
         self.sol_reward = []
         self.sol_obs = []
 
-        self.env.reset_model()
+        # self.env.reset_model()
         self.sol_state.append(self.env.get_env_state().copy())
         self.sol_obs.append(self.env._get_obs())
         self.act_sequence = np.ones((self.H, self.m)) * self.mean
