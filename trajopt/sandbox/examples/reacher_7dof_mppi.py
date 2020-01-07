@@ -13,7 +13,7 @@ N_ITER = 5
 H_total = 100
 # =======================================
 
-e = get_environment(ENV_NAME)
+e = get_environment(ENV_NAME, sparse_reward=True)
 e.reset_model(seed=SEED)
 mean = np.zeros(e.action_dim)
 sigma = 1.0*np.ones(e.action_dim)
@@ -26,13 +26,12 @@ agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
 ts = timer.time()
 for t in tqdm(range(H_total)):
     history = agent.train_step(niter=N_ITER)
-    print(rtn['states'][0])
-    if t % 25 == 0 and t > 0:
-        print("==============>>>>>>>>>>> saving progress ")
-        pickle.dump(agent, open(PICKLE_FILE, 'wb'))
+    # if t % 25 == 0 and t > 0:
+    #     print("==============>>>>>>>>>>> saving progress ")
+    #     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
 
 # pickle.dump(agent, open(PICKLE_FILE, 'wb'))
-agent = pickle.load(open(PICKLE_FILE, 'rb'))
+# agent = pickle.load(open(PICKLE_FILE, 'rb'))
 print("Trajectory reward = %f" % np.sum(agent.sol_reward))
 print("Time for trajectory optimization = %f seconds" %(timer.time()-ts))
 
