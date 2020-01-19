@@ -14,7 +14,7 @@ class Critic(nn.Module):
     implements both actor and critic in one model
     """
     def __init__(self, gamma=1.0, num_iters=10000, batch_size=128,
-                 input_dim=14):
+                 input_dim=17):
         super(Critic, self).__init__()
 
         self.gamma = gamma
@@ -26,7 +26,7 @@ class Critic(nn.Module):
         self.softplus = nn.Softplus()
         self.relu = nn.ReLU()
 
-        self.linear1 = nn.Linear(self.input_dim, 128)
+        self.linear1 = nn.Linear(input_dim, 128)
 
         self.linear2 = nn.Linear(128, 128)
         # self.linear2_5 = nn.Linear(128, 128)
