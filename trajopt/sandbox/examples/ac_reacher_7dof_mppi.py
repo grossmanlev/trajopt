@@ -50,7 +50,12 @@ if __name__ == '__main__':
                         help='save the replay buffer?')
     parser.add_argument('--target', action='store_true')
     parser.add_argument('--eta', default=0.9, type=float)
+    parser.add_argument('--goals', action='store_true')
     args = parser.parse_args()
+
+    # Check to add goal position to state space
+    if args.goals:
+        STATE_DIM += 3
 
     # Writer will output to ./runs/ directory by default
     writer = SummaryWriter()
@@ -62,22 +67,16 @@ if __name__ == '__main__':
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
 
-    # e_sparse = get_environment(ENV_NAME, sparse_reward=True)
-
-    # agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
-    #              kappa=25.0, gamma=1.0, mean=mean, filter_coefs=filter_coefs,
-    #              default_act='mean', seed=SEED)
-
     good_agent = pickle.load(open('116_agent.pickle', 'rb'))
     sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
     init_seq = sol_actions[:H]
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=2000)
+    critic = Critic(num_iters=2000, input_dim=STATE_DIM)
     loaded_critic = None
     if args.critic is not None:
-        loaded_critic = Critic()
+        loaded_critic = Critic(num_iters=2000, input_dim=STATE_DIM)
         loaded_critic.load_state_dict(torch.load(args.critic))
         loaded_critic.eval()
         loaded_critic.float()
@@ -85,7 +84,7 @@ if __name__ == '__main__':
 
     # Set up target critic network
     if args.target:
-        target_critic = Critic(num_iters=2000, batch_size=128)
+        target_critic = Critic(num_iters=2000, input_dim=STATE_DIM)
         target_critic.load_state_dict(critic.state_dict())
         target_critic.eval()
         target_critic.float()
@@ -95,6 +94,8 @@ if __name__ == '__main__':
 
     eta = args.eta
     limit = int((H_total + H) / 0.9)
+
+    env_seeds = [0, 1, 2, 3, 4]
 
     for x in range(100):
         limit = int(limit * 0.9)
@@ -116,21 +117,6 @@ if __name__ == '__main__':
                          default_act='mean', seed=SEED,
                          init_seq=None)
 
-        # if x == 0:
-        #     e.reset_model(seed=SEED)
-        #     agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-        #                  kappa=25.0, gamma=1.0, mean=mean,
-        #                  filter_coefs=filter_coefs,
-        #                  default_act='mean', seed=SEED,
-        #                  init_seq=init_seq)
-        # else:
-        #     e.reset_model(seed=SEED)
-        #     agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-        #                  kappa=25.0, gamma=1.0, mean=mean,
-        #                  filter_coefs=filter_coefs,
-        #                  default_act='mean', seed=SEED,
-        #                  init_seq=None)
-
         ts = timer.time()
         for t in tqdm(range(H_total)):
 
@@ -147,8 +133,10 @@ if __name__ == '__main__':
                                           act_sequence=None)
             # tuples = agent.train_step(critic=critic, niter=N_ITER)
             # Add new transitions into replay buffer
-            tuples = critic.compress_states(tuples)
+            tuples = critic.compress_states(tuples, include_goal=True)
             replay_buffer.concatenate(tuples)
+
+            import pdb; pdb.set_trace()
 
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
         writer.add_scalar('Trajectory Return', np.sum(agent.sol_reward), x)

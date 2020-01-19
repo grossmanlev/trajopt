@@ -11,6 +11,7 @@ from trajopt.utils import ReplayBuffer, Tuple
 
 import torch
 
+
 class MPPI(Trajectory):
     def __init__(self, env, H, paths_per_cpu,
                  num_cpu=1,

@@ -75,16 +75,17 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def target_reset(self):
         target_pos = np.array([0.1, 0.1, 0.1])
         if self.seeding is True:
-            target_pos[0] = self.np_random.uniform(low=-0.3, high=0.3)
+            target_pos[0] = self.np_random.uniform(low=-0.2, high=0.2)
             target_pos[1] = self.np_random.uniform(low=-0.2, high=0.2)
-            target_pos[2] = self.np_random.uniform(low=-0.25, high=0.25)
+            target_pos[2] = self.np_random.uniform(low=-0.2, high=0.2)
         self.model.site_pos[self.target_sid] = target_pos
+        self.data.site_xpos[self.target_sid] = target_pos
         self.sim.forward()
 
     def reset_model(self, seed=None):
         if seed is not None:
             self.seeding = True
-            self.seed(seed)
+            self._seed(seed)
         self.robot_reset()
         self.target_reset()
         return self._get_obs()
@@ -105,6 +106,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         target_pos = state['target_pos']
         self.set_state(qp, qv)
         self.model.site_pos[self.target_sid] = target_pos
+        self.data.site_xpos[self.target_sid] = target_pos
         self.env_timestep = state['timestep']
         self.sim.forward()
 

@@ -13,18 +13,20 @@ class Critic(nn.Module):
     """
     implements both actor and critic in one model
     """
-    def __init__(self, gamma=1.0, num_iters=10000, batch_size=128):
+    def __init__(self, gamma=1.0, num_iters=10000, batch_size=128,
+                 input_dim=14):
         super(Critic, self).__init__()
 
         self.gamma = gamma
         self.num_iters = num_iters
         self.batch_size = batch_size
+        self.input_dim = input_dim
 
         self.tanh = torch.tanh
         self.softplus = nn.Softplus()
         self.relu = nn.ReLU()
 
-        self.linear1 = nn.Linear(STATE_DIM, 128)  # TODO: 7DOF qpos and qvel
+        self.linear1 = nn.Linear(self.input_dim, 128)
 
         self.linear2 = nn.Linear(128, 128)
         # self.linear2_5 = nn.Linear(128, 128)
@@ -40,18 +42,37 @@ class Critic(nn.Module):
 
         return value
 
-    def compress_state(self, state):
+    def compress_state(self, state, include_goal=False):
         """ Put a reacher_env state into a compressed format """
-        return np.concatenate((state["qp"], state["qv"]))
+        if include_goal:
+            return np.concatenate(
+                (state["qp"],
+                 state["qv"],
+                 state["target_pos"]))
+        else:
+            return np.concatenate(
+                (state["qp"],
+                 state["qv"]))
 
-    def compress_states(self, tuples):
+    def compress_states(self, tuples, include_goal=False):
         """ Put states into array representation, so everything is an np.array """
         for i in range(len(tuples)):
-            state = self.compress_state(tuples[i].state)
-            np.concatenate(
-                (tuples[i].state["qp"], tuples[i].state["qv"]))
-            next_state = np.concatenate(
-                (tuples[i].next_state["qp"], tuples[i].next_state["qv"]))
+            state = self.compress_state(
+                tuples[i].state, include_goal=include_goal)
+            # np.concatenate(
+            #     (tuples[i].state["qp"], tuples[i].state["qv"]))
+            if include_goal:
+                next_state = np.concatenate(
+                    (tuples[i].next_state["qp"],
+                     tuples[i].next_state["qv"],
+                     tuples[i].next_state["target_pos"]))
+            else:
+                next_state = np.concatenate(
+                    (tuples[i].next_state["qp"],
+                     tuples[i].next_state["qv"]))
             tuples[i] = Tuple(
-                state, tuples[i].action, tuples[i].reward, next_state)
+                state,
+                tuples[i].action,
+                tuples[i].reward,
+                next_state)
         return tuples
