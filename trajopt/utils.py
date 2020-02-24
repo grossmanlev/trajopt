@@ -56,7 +56,7 @@ class ReplayBuffer(object):
         return random.sample(self.buffer, size)
 
 
-def do_env_rollout(env_name, start_state, act_list):
+def do_env_rollout(env_name, start_state, act_list, goal):
     """
         1) Construct env with env_name and set it to start_state.
         2) Generate rollouts using act_list.
@@ -64,7 +64,7 @@ def do_env_rollout(env_name, start_state, act_list):
            Length of act_list is the number of desired rollouts.
     """
     e = get_environment(env_name)
-    e.reset_model()
+    e.reset_model(goal=goal)
     e.real_step = False
     paths = []
     H = act_list[0].shape[0]
@@ -122,7 +122,7 @@ def generate_perturbed_actions(base_act, filter_coefs):
     return base_act + eps
 
 
-def generate_paths(env_name, start_state, N, base_act, filter_coefs, base_seed):
+def generate_paths(env_name, start_state, N, base_act, filter_coefs, base_seed, goal):
     """
     first generate enough perturbed actions
     then do rollouts with generated actions
@@ -133,7 +133,7 @@ def generate_paths(env_name, start_state, N, base_act, filter_coefs, base_seed):
     for i in range(N):
         act = generate_perturbed_actions(base_act, filter_coefs)
         act_list.append(act)
-    paths = do_env_rollout(env_name, start_state, act_list)
+    paths = do_env_rollout(env_name, start_state, act_list, goal)
     return paths
 
 
@@ -141,12 +141,12 @@ def generate_paths_star(args_list):
     return generate_paths(*args_list)
 
 
-def gather_paths_parallel(env_name, start_state, base_act, filter_coefs, base_seed, paths_per_cpu, num_cpu=None):
+def gather_paths_parallel(env_name, start_state, base_act, filter_coefs, base_seed, goal, paths_per_cpu, num_cpu=None):
     num_cpu = mp.cpu_count() if num_cpu is None else num_cpu
     args_list = []
     for i in range(num_cpu):
         cpu_seed = base_seed + i*paths_per_cpu
-        args_list_cpu = [env_name, start_state, paths_per_cpu, base_act, filter_coefs, cpu_seed]
+        args_list_cpu = [env_name, start_state, paths_per_cpu, base_act, filter_coefs, cpu_seed, goal]
         args_list.append(args_list_cpu)
 
     # do multiprocessing

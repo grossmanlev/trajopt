@@ -13,7 +13,7 @@ N_ITER = 5
 H_total = 100
 # =======================================
 
-e = get_environment(ENV_NAME, sparse_reward=True)
+e = get_environment(ENV_NAME, sparse_reward=False)
 e.reset_model(seed=SEED)
 mean = np.zeros(e.action_dim)
 sigma = 1.0*np.ones(e.action_dim)
@@ -30,7 +30,7 @@ for t in tqdm(range(H_total)):
     #     print("==============>>>>>>>>>>> saving progress ")
     #     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
 
-# pickle.dump(agent, open(PICKLE_FILE, 'wb'))
+pickle.dump(agent, open('dense_reward_agent.pickle', 'wb'))
 # agent = pickle.load(open(PICKLE_FILE, 'rb'))
 print("Trajectory reward = %f" % np.sum(agent.sol_reward))
 print("Time for trajectory optimization = %f seconds" %(timer.time()-ts))

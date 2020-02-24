@@ -28,8 +28,8 @@ if __name__ == '__main__':
                         help='number of random initializations to test')
     args = parser.parse_args()
 
-    e = get_environment(ENV_NAME, sparse_reward=False)
-    e.reset_model(seed=SEED)
+    e = get_environment(ENV_NAME, sparse_reward=True)
+    # e.reset_model(seed=SEED)
 
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
@@ -53,7 +53,8 @@ if __name__ == '__main__':
 
     rewards = []
 
-    env_seeds = [0, 1, 2, 3, 4]
+    # env_seeds = [0, 1, 2, 3, 4]
+    env_seeds = [None]
     for seed in env_seeds:
         # random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         # e.set_state(random_qpos, e.init_qvel)
@@ -72,14 +73,15 @@ if __name__ == '__main__':
             # Actor step
             agent.train_step(critic=critic, niter=N_ITER)
 
+        # import pdb; pdb.set_trace()
         rewards.append(np.sum(agent.sol_reward))
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
-        pickle.dump(agent, open('agent_116_seed_{}.pickle'.format(seed), 'wb'))
+        # pickle.dump(agent, open('agent_116_seed_{}.pickle'.format(seed), 'wb'))
 
-        # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
-        # print(e.data.site_xpos[e.target_sid])
-        # for _ in range(10):
-        #     agent.animate_result()
+        _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
+        print(e.data.site_xpos[e.target_sid])
+        for _ in range(10):
+            agent.animate_result()
 
     print("Avg. Reward: {} ({})".format(np.mean(rewards), np.std(rewards)))
 

@@ -26,6 +26,24 @@ class Critic(nn.Module):
         self.softplus = nn.Softplus()
         self.relu = nn.ReLU()
 
+        # self.model = nn.Sequential(
+        #     nn.Linear(input_dim, 128),
+        #     nn.Tanh(),
+        #     nn.Linear(128, 128),
+        #     nn.Tanh(),
+        #     nn.Linear(128, 1)
+        # )
+
+        # self.model = nn.Sequential(
+        #     nn.Linear(input_dim, 128),
+        #     nn.BatchNorm1d(128),
+        #     nn.Tanh(),
+        #     nn.Linear(128, 128),
+        #     nn.BatchNorm1d(128),
+        #     nn.Tanh(),
+        #     nn.Linear(128, 1)
+        # )
+
         self.linear1 = nn.Linear(input_dim, 128)
 
         self.linear2 = nn.Linear(128, 128)
@@ -39,8 +57,9 @@ class Critic(nn.Module):
 
         # critic: evaluates being in the state s_t
         value = self.linear3(x)
-
         return value
+
+        # return self.model(x)
 
     def compress_state(self, state, include_goal=False):
         """ Put a reacher_env state into a compressed format """

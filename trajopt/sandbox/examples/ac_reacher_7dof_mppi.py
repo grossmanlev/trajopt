@@ -51,6 +51,7 @@ if __name__ == '__main__':
     parser.add_argument('--target', action='store_true')
     parser.add_argument('--eta', default=0.9, type=float)
     parser.add_argument('--goals', action='store_true')
+    parser.add_argument('--lr', default=1e-2, type=float)
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -62,7 +63,7 @@ if __name__ == '__main__':
 
     e = get_environment(ENV_NAME, sparse_reward=True)
     # e.sparse_reward = True
-    e.reset_model(seed=SEED)
+    # e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
@@ -74,12 +75,9 @@ if __name__ == '__main__':
     replay_buffer = ReplayBuffer(max_size=1000000)
 
     critic = Critic(num_iters=2000, input_dim=STATE_DIM)
-    loaded_critic = None
     if args.critic is not None:
-        loaded_critic = Critic(num_iters=2000, input_dim=STATE_DIM)
-        loaded_critic.load_state_dict(torch.load(args.critic))
-        loaded_critic.eval()
-        loaded_critic.float()
+        critic.load_state_dict(torch.load(args.critic))
+    critic.eval()
     critic.float()
 
     # Set up target critic network
@@ -89,14 +87,14 @@ if __name__ == '__main__':
         target_critic.eval()
         target_critic.float()
 
-    optimizer = optim.Adam(critic.parameters(), lr=1e-2)
+    optimizer = optim.Adam(critic.parameters(), lr=args.lr)
     criterion = nn.MSELoss()
 
     eta = args.eta
     # limit = H_total + H
     limit = int((H_total + H) / args.eta)
 
-    env_seeds = [0, 1, 2, 3, 4]
+    env_seeds = [None]
 
     good_agents = []
     sol_actions = []
@@ -106,22 +104,28 @@ if __name__ == '__main__':
         sol_actions.append(np.array(good_agents[-1].sol_act))
         init_seqs.append(sol_actions[-1][:H])
 
-    for x in range(100):
-        limit = int(limit * args.eta)
-        for s, seed in enumerate(env_seeds):
+    writer_x = 0
+    for s, seed in enumerate(env_seeds):
+        limit = int((H_total + H) / args.eta)
+        # limit = int(limit * args.eta)
+        current_reward = 0.0
+        for x in range(100):
+            limit = int(limit * args.eta)
+            # e = get_environment(ENV_NAME, sparse_reward=True)
             e.reset_model(seed=seed)
+            print('Goal: {}'.format(e.get_env_state()['target_pos']))
+            goal = e.get_env_state()['target_pos']
             print('*'*36)
             print('Round: {}, Limit: {}'.format(x, limit))
             print()
+            critic.eval()
             if limit >= H:
-                e.reset_model(seed=SEED)
                 agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
                              kappa=25.0, gamma=1.0, mean=mean,
                              filter_coefs=filter_coefs,
                              default_act='mean', seed=SEED,
                              init_seq=init_seqs[s])
             else:
-                e.reset_model(seed=SEED)
                 agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
                              kappa=25.0, gamma=1.0, mean=mean,
                              filter_coefs=filter_coefs,
@@ -133,17 +137,22 @@ if __name__ == '__main__':
 
                 if limit >= t + H:
                     tuples = agent.train_step(critic=critic, niter=N_ITER,
-                                              act_sequence=sol_actions[s][t:t+H])
+                                              act_sequence=sol_actions[s][t:t+H],
+                                              goal=goal)
                 else:
                     tuples = agent.train_step(critic=critic, niter=N_ITER,
-                                              act_sequence=None)
+                                              act_sequence=None,
+                                              goal=goal)
 
                 # Add new transitions into replay buffer
                 tuples = critic.compress_states(tuples, include_goal=args.goals)
                 replay_buffer.concatenate(tuples)
 
-            print("Trajectory reward = %f" % np.sum(agent.sol_reward))
-            writer.add_scalar('Trajectory Return', np.sum(agent.sol_reward), x)
+            tmp_reward = np.sum(agent.sol_reward)
+            current_reward += tmp_reward
+            print("Trajectory reward = %f" % tmp_reward)
+            writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
+            writer_x += 1
 
             pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}_{}.pickle'.format(x, s), 'wb'))
             torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}_{}.pt'.format(x, s))
@@ -160,7 +169,6 @@ if __name__ == '__main__':
                     # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
                     next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
 
-                    import odb; pdb.set_trace()
                     # get output for the next state
                     if args.target:
                         output_batch = target_critic(next_state_batch)
@@ -194,6 +202,8 @@ if __name__ == '__main__':
                     # calculate loss
                     loss = criterion(v_batch, y_batch)
 
+                    # import pdb; pdb.set_trace()
+
                     # do backward pass
                     loss.backward()
                     optimizer.step()
@@ -202,15 +212,23 @@ if __name__ == '__main__':
                         print('Loss: {}'.format(loss))
                         s0 = torch.zeros(STATE_DIM)
                         sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
-                                           0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+                                           0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                           0.0, 0.0, 0.0])
+                        s0 = s0.unsqueeze(0)
+                        sf = sf.unsqueeze(0)
+                        critic.eval()
                         print('{}'.format(critic(s0)))
                         print('{}'.format(critic(sf)))
+                        critic.train()
 
                     if args.target and i % 250 == 0:
                         # Update target critic network
                         target_critic.load_state_dict(critic.state_dict())
                         target_critic.eval()
                         target_critic.float()
+
+        current_reward /= float(len(env_seeds))
+        # writer.add_scalar('Trajectory Return', current_reward, x)
 
     # Save the replay buffer
     if args.save_buffer:

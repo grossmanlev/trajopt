@@ -88,25 +88,26 @@ class MPPI(Trajectory):
                     scores[i] += (self.gamma**t)*paths[i]["rewards"][t]
         return scores
 
-    def do_rollouts(self, seed):
+    def do_rollouts(self, seed, goal=None):
         paths = gather_paths_parallel(self.env.env_name,
                                       self.sol_state[-1],
                                       self.act_sequence,
                                       self.filter_coefs,
                                       seed,
+                                      goal,
                                       self.paths_per_cpu,
                                       self.num_cpu,
                                       )
         return paths
 
-    def train_step(self, critic=None, niter=1, act_sequence=None):
+    def train_step(self, critic=None, niter=1, act_sequence=None, goal=None):
         # states = []
         # actions = []
         # rewards = []
         replay_tuples = []
         t = len(self.sol_state) - 1
         for _ in range(niter):
-            paths = self.do_rollouts(self.seed+t)
+            paths = self.do_rollouts(self.seed+t, goal=goal)
 
             for i, path in enumerate(paths):
                 critic_rewards = []
@@ -122,8 +123,10 @@ class MPPI(Trajectory):
                     if critic is not None:
                         # HACK to get value of next state, s'
                         #import pdb; pdb.set_trace()
+                        # print('Goal: {}'.format(path["next_observations"][j][-3:]))
                         critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
                         critic_state = torch.tensor(critic_state, dtype=torch.float32)
+                        critic_state = critic_state.unsqueeze(0)
                         critic_reward = critic(critic_state).detach().numpy()
                         critic_rewards.append(critic_reward)
                         # if j < len(path["states"]) - 1:

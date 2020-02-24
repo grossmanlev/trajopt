@@ -20,6 +20,12 @@ STATE_DIM = 14
 H = 16
 # =======================================
 
+
+def custom_reward_fn(sol_reward):
+    """ 1 if any of the rewards is +100 (reached goal), 0 otherwise."""
+    return int(100 in [int(elt) for elt in sol_reward])
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--critic', default=None,
@@ -29,7 +35,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     e = get_environment(ENV_NAME, sparse_reward=True)
-    e.reset_model(seed=SEED)
+    goal = np.zeros(3)
+    e.reset_model(seed=SEED, goal=goal)
 
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
@@ -37,7 +44,7 @@ if __name__ == '__main__':
 
     critic = None
     if args.critic is not None:
-        critic = Critic()
+        critic = Critic(input_dim=STATE_DIM + 3)
         critic.load_state_dict(torch.load(args.critic))
         critic.eval()
         critic.float()
@@ -49,12 +56,20 @@ if __name__ == '__main__':
                              [-1.5, 1.5],
                              [-1.094, 0],
                              [-1.5, 1.5]])
-    joint_limits /= 1.0
+    joint_limits /= 2.0
 
+    np_seed = 0
     rewards = []
-    for _ in range(args.iters):
+    custom_rewards = []
+
+    for _ in tqdm(range(args.iters), disable=False):
+        e = get_environment(ENV_NAME, sparse_reward=True)
+        e.reset_model(goal=goal)
+        np.random.seed(seed=np_seed)
         random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
-        e.set_state(random_qpos, e.init_qvel)
+        # print(random_qpos)
+        # e.set_state(random_qpos, e.init_qvel)
+        # print(e._get_obs())
 
         agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
                      kappa=25.0, gamma=1.0, mean=mean,
@@ -63,19 +78,29 @@ if __name__ == '__main__':
                      init_seq=None)
 
         ts = timer.time()
-        for t in tqdm(range(H_total)):
+        for t in tqdm(range(H_total), disable=False):
 
             # Actor step
-            agent.train_step(critic=critic, niter=N_ITER)
+            agent.train_step(critic=critic, niter=N_ITER, goal=goal)
 
-        rewards.append(np.sum(agent.sol_reward))
-        print("Trajectory reward = %f" % np.sum(agent.sol_reward))
+        reward = np.sum(agent.sol_reward)
+        custom_reward = custom_reward_fn(agent.sol_reward)
+        rewards.append(reward)
+        custom_rewards.append(custom_reward)
+        pickle.dump(agent, open('sparse_reward_agent.pickle', 'wb'))
+        print("Trajectory reward = %f" % reward)
+        print("Custom reward = %f" % custom_reward)
 
         # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
         # for _ in range(10):
         #     agent.animate_result()
 
-    print("Avg. Reward: {} ({})".format(np.mean(rewards), np.std(rewards)))
+        np_seed += 1
+
+    print("Avg. Reward: {} ({})".format(
+        np.mean(rewards), np.std(rewards)))
+    print("Avg. Custom Reward: {} ({})".format(
+        np.mean(custom_rewards), np.std(custom_rewards)))
 
     # agent = pickle.load(open('116_agent.pickle', 'rb'))
 
