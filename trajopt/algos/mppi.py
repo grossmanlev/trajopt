@@ -125,6 +125,7 @@ class MPPI(Trajectory):
                         #import pdb; pdb.set_trace()
                         # print('Goal: {}'.format(path["next_observations"][j][-3:]))
                         critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
+                        # critic_state = np.concatenate((path["next_observations"][j][:7], path["next_observations"][j][-3:]))
                         critic_state = torch.tensor(critic_state, dtype=torch.float32)
                         critic_state = critic_state.unsqueeze(0)
                         critic_reward = critic(critic_state).detach().numpy()

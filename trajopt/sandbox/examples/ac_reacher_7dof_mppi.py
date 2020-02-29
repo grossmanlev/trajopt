@@ -36,6 +36,7 @@ SEED = 12345
 N_ITER = 5
 H_total = 100
 STATE_DIM = 14
+# STATE_DIM = 7
 H = 16
 # =======================================
 
@@ -88,6 +89,9 @@ if __name__ == '__main__':
         target_critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=args.lr)
+    milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer, milestones=milestones, gamma=0.1)
     criterion = nn.MSELoss()
 
     eta = args.eta
@@ -207,6 +211,7 @@ if __name__ == '__main__':
                     # do backward pass
                     loss.backward()
                     optimizer.step()
+                    scheduler.step()
 
                     if i % 1000 == 0:
                         print('Loss: {}'.format(loss))
@@ -214,6 +219,10 @@ if __name__ == '__main__':
                         sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
                                            0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                                            0.0, 0.0, 0.0])
+                        # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
+                        #                    0.01832143, -1.52851301])
+                        # if args.goals:
+                        #     sf = torch.cat((sf, torch.zeros(3)))
                         s0 = s0.unsqueeze(0)
                         sf = sf.unsqueeze(0)
                         critic.eval()

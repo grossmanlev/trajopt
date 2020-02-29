@@ -68,7 +68,7 @@ if __name__ == '__main__':
         np.random.seed(seed=np_seed)
         random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         # print(random_qpos)
-        # e.set_state(random_qpos, e.init_qvel)
+        e.set_state(random_qpos, e.init_qvel)
         # print(e._get_obs())
 
         agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
@@ -78,7 +78,7 @@ if __name__ == '__main__':
                      init_seq=None)
 
         ts = timer.time()
-        for t in tqdm(range(H_total), disable=False):
+        for t in tqdm(range(H_total), disable=True):
 
             # Actor step
             agent.train_step(critic=critic, niter=N_ITER, goal=goal)
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         custom_reward = custom_reward_fn(agent.sol_reward)
         rewards.append(reward)
         custom_rewards.append(custom_reward)
-        pickle.dump(agent, open('sparse_reward_agent.pickle', 'wb'))
+        # pickle.dump(agent, open('sparse_reward_agent.pickle', 'wb'))
         print("Trajectory reward = %f" % reward)
         print("Custom reward = %f" % custom_reward)
 

@@ -64,6 +64,9 @@ class Critic(nn.Module):
     def compress_state(self, state, include_goal=False):
         """ Put a reacher_env state into a compressed format """
         if include_goal:
+            # return np.concatenate(
+            #     (state["qp"],
+            #      state["target_pos"]))
             return np.concatenate(
                 (state["qp"],
                  state["qv"],
@@ -81,6 +84,9 @@ class Critic(nn.Module):
             # np.concatenate(
             #     (tuples[i].state["qp"], tuples[i].state["qv"]))
             if include_goal:
+                # next_state = np.concatenate(
+                #     (tuples[i].next_state["qp"],
+                #      tuples[i].next_state["target_pos"]))
                 next_state = np.concatenate(
                     (tuples[i].next_state["qp"],
                      tuples[i].next_state["qv"],
