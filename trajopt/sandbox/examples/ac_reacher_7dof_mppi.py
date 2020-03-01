@@ -114,7 +114,11 @@ if __name__ == '__main__':
         # limit = int(limit * args.eta)
         current_reward = 0.0
         for x in range(100):
-            limit = int(limit * args.eta)
+            # limit = int(limit * args.eta)
+            # Testing just using reference trajectory
+            if x > 18:
+                limit = 0
+
             # e = get_environment(ENV_NAME, sparse_reward=True)
             e.reset_model(seed=seed)
             print('Goal: {}'.format(e.get_env_state()['target_pos']))
@@ -215,19 +219,19 @@ if __name__ == '__main__':
 
                     if i % 1000 == 0:
                         print('Loss: {}'.format(loss))
-                        s0 = torch.zeros(STATE_DIM)
-                        sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
-                                           0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                                           0.0, 0.0, 0.0])
+                        # s0 = torch.zeros(STATE_DIM)
                         # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
-                        #                    0.01832143, -1.52851301])
-                        # if args.goals:
-                        #     sf = torch.cat((sf, torch.zeros(3)))
-                        s0 = s0.unsqueeze(0)
-                        sf = sf.unsqueeze(0)
-                        critic.eval()
-                        print('{}'.format(critic(s0)))
-                        print('{}'.format(critic(sf)))
+                        #                    0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                        #                    0.0, 0.0, 0.0])
+                        # # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
+                        # #                    0.01832143, -1.52851301])
+                        # # if args.goals:
+                        # #     sf = torch.cat((sf, torch.zeros(3)))
+                        # s0 = s0.unsqueeze(0)
+                        # sf = sf.unsqueeze(0)
+                        # critic.eval()
+                        # print('{}'.format(critic(s0)))
+                        # print('{}'.format(critic(sf)))
                         critic.train()
 
                     if args.target and i % 250 == 0:

@@ -122,11 +122,10 @@ class MPPI(Trajectory):
                     # Compute state values based on Critic
                     if critic is not None:
                         # HACK to get value of next state, s'
-                        #import pdb; pdb.set_trace()
-                        # print('Goal: {}'.format(path["next_observations"][j][-3:]))
-                        critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
+                        # critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
                         # critic_state = np.concatenate((path["next_observations"][j][:7], path["next_observations"][j][-3:]))
-                        critic_state = torch.tensor(critic_state, dtype=torch.float32)
+                        # critic_state = torch.tensor(critic_state, dtype=torch.float32)
+                        critic_state = torch.tensor(path["next_observations"][j][:14], dtype=torch.float32)
                         critic_state = critic_state.unsqueeze(0)
                         critic_reward = critic(critic_state).detach().numpy()
                         critic_rewards.append(critic_reward)
