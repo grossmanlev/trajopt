@@ -89,7 +89,8 @@ if __name__ == '__main__':
         target_critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=args.lr)
-    milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
+    # milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
+    milestones = [100]
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=milestones, gamma=0.1)
     criterion = nn.MSELoss()
@@ -114,10 +115,10 @@ if __name__ == '__main__':
         # limit = int(limit * args.eta)
         current_reward = 0.0
         for x in range(100):
-            # limit = int(limit * args.eta)
+            limit = int(limit * args.eta)
             # Testing just using reference trajectory
-            if x > 18:
-                limit = 0
+            # if x > 18:
+            #     limit = 0
 
             # e = get_environment(ENV_NAME, sparse_reward=True)
             e.reset_model(seed=seed)

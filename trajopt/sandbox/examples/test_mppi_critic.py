@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     critic = None
     if args.critic is not None:
-        critic = Critic(input_dim=STATE_DIM + 3)
+        critic = Critic(input_dim=STATE_DIM)
         critic.load_state_dict(torch.load(args.critic))
         critic.eval()
         critic.float()
