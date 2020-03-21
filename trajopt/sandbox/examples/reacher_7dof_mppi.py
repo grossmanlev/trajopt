@@ -8,9 +8,9 @@ import pickle
 # =======================================
 ENV_NAME = 'reacher_7dof'
 PICKLE_FILE = ENV_NAME + '_mppi.pickle'
-SEED = 12345
+SEED = 2
 N_ITER = 5
-H_total = 100
+H_total = 100 + 16
 # =======================================
 
 e = get_environment(ENV_NAME, sparse_reward=False)

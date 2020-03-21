@@ -89,8 +89,8 @@ if __name__ == '__main__':
         target_critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=args.lr)
-    # milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
-    milestones = [100]
+    milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
+    # milestones = [100]
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=milestones, gamma=0.1)
     criterion = nn.MSELoss()
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     # limit = H_total + H
     limit = int((H_total + H) / args.eta)
 
-    env_seeds = [None]
+    env_seeds = [4]
 
     good_agents = []
     sol_actions = []
@@ -112,6 +112,7 @@ if __name__ == '__main__':
     writer_x = 0
     for s, seed in enumerate(env_seeds):
         limit = int((H_total + H) / args.eta)
+        # limit = 0
         # limit = int(limit * args.eta)
         current_reward = 0.0
         for x in range(100):
@@ -218,7 +219,7 @@ if __name__ == '__main__':
                     optimizer.step()
                     scheduler.step()
 
-                    if i % 1000 == 0:
+                    if i % 500 == 0:
                         print('Loss: {}'.format(loss))
                         # s0 = torch.zeros(STATE_DIM)
                         # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,

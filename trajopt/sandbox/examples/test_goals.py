@@ -15,10 +15,16 @@ ENV_NAME = 'reacher_7dof'
 PICKLE_FILE = ENV_NAME + '_mppi.pickle'
 SEED = 12345
 N_ITER = 5
-H_total = 100 + 16
-STATE_DIM = 14
+H_total = 100
+STATE_DIM = 17
 H = 16
 # =======================================
+
+
+def custom_reward_fn(sol_reward):
+    """ 1 if any of the rewards is +100 (reached goal), 0 otherwise."""
+    return int(100 in [int(elt) for elt in sol_reward])
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -37,7 +43,7 @@ if __name__ == '__main__':
 
     critic = None
     if args.critic is not None:
-        critic = Critic()
+        critic = Critic(input_dim=STATE_DIM)
         critic.load_state_dict(torch.load(args.critic))
         critic.eval()
         critic.float()
@@ -49,12 +55,18 @@ if __name__ == '__main__':
                              [-1.5, 1.5],
                              [-1.094, 0],
                              [-1.5, 1.5]])
-    joint_limits /= 1.0
+    joint_limits /= 2.0
 
     rewards = []
 
+    # critics = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75]
+
     # env_seeds = [0, 1, 2, 3, 4]
-    env_seeds = [None]
+    env_seeds = [None, 3]
+
+    # for c in critics:
+    #     critic =
+
     for seed in env_seeds:
         # random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         # e.set_state(random_qpos, e.init_qvel)
@@ -76,12 +88,14 @@ if __name__ == '__main__':
         # import pdb; pdb.set_trace()
         rewards.append(np.sum(agent.sol_reward))
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
+        print("Custom reward = %f" % custom_reward_fn(agent.sol_reward))
         # pickle.dump(agent, open('agent_116_seed_{}.pickle'.format(seed), 'wb'))
+        pickle.dump(agent, open('thesis/agent_goal_gen_{}_.pickle'.format(seed), 'wb'))
 
-        _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
-        print(e.data.site_xpos[e.target_sid])
-        for _ in range(10):
-            agent.animate_result()
+        # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
+        # print(e.data.site_xpos[e.target_sid])
+        # for _ in range(10):
+        #     agent.animate_result()
 
     print("Avg. Reward: {} ({})".format(np.mean(rewards), np.std(rewards)))
 
