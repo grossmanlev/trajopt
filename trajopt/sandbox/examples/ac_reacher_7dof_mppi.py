@@ -41,6 +41,36 @@ H = 16
 # =======================================
 
 
+def custom_reward_fn(sol_reward):
+    """ 1 if any of the rewards is +100 (reached goal), 0 otherwise."""
+    return int(100 in [int(elt) for elt in sol_reward])
+
+
+def test_goals(seeds, critic):
+    print('=' * 20)
+    for seed in seeds:
+        e = get_environment(ENV_NAME, sparse_reward=True)
+        e.reset_model(seed=seed)
+
+        mean = np.zeros(e.action_dim)
+        sigma = 1.0*np.ones(e.action_dim)
+        filter_coefs = [sigma, 0.25, 0.8, 0.0]
+
+        agent_test = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+            kappa=25.0, gamma=1.0, mean=mean,
+            filter_coefs=filter_coefs,
+            default_act='mean', seed=SEED,
+            init_seq=None)
+
+        for t in tqdm(range(H_total)):
+            agent_test.train_step(critic=critic, niter=N_ITER)
+
+        print("Trajectory reward = %f" % np.sum(agent_test.sol_reward))
+        print("Custom reward = %f" % custom_reward_fn(agent_test.sol_reward))
+
+    print('=' * 20)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--critic', default=None,
@@ -99,7 +129,7 @@ if __name__ == '__main__':
     # limit = H_total + H
     limit = int((H_total + H) / args.eta)
 
-    env_seeds = [4]
+    env_seeds = [3]
 
     good_agents = []
     sol_actions = []
@@ -241,6 +271,8 @@ if __name__ == '__main__':
                         target_critic.load_state_dict(critic.state_dict())
                         target_critic.eval()
                         target_critic.float()
+
+                test_goals([None, 3], critic)
 
         current_reward /= float(len(env_seeds))
         # writer.add_scalar('Trajectory Return', current_reward, x)
