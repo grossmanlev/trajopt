@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=2000, input_dim=STATE_DIM)
+    critic = Critic(num_iters=1000, input_dim=STATE_DIM)
     if args.critic is not None:
         critic.load_state_dict(torch.load(args.critic))
     critic.eval()
