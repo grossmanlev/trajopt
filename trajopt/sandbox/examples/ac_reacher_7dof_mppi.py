@@ -35,7 +35,7 @@ REPLAY_PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_replay.pi
 SEED = 12345
 N_ITER = 5
 H_total = 100
-STATE_DIM = 14
+STATE_DIM = 3
 # STATE_DIM = 7
 H = 16
 # =======================================
@@ -46,7 +46,7 @@ def custom_reward_fn(sol_reward):
     return int(100 in [int(elt) for elt in sol_reward])
 
 
-def test_goals(seeds, critic):
+def test_goals(seeds, critic, dim):
     print('=' * 20)
     for seed in seeds:
         e = get_environment(ENV_NAME, sparse_reward=True)
@@ -57,13 +57,13 @@ def test_goals(seeds, critic):
         filter_coefs = [sigma, 0.25, 0.8, 0.0]
 
         agent_test = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-            kappa=25.0, gamma=1.0, mean=mean,
-            filter_coefs=filter_coefs,
-            default_act='mean', seed=SEED,
-            init_seq=None)
+                          kappa=25.0, gamma=1.0, mean=mean,
+                          filter_coefs=filter_coefs,
+                          default_act='mean', seed=SEED,
+                          init_seq=None)
 
         for t in tqdm(range(H_total)):
-            agent_test.train_step(critic=critic, niter=N_ITER)
+            agent_test.train_step(critic=critic, niter=N_ITER, dim=dim)
 
         print("Trajectory reward = %f" % np.sum(agent_test.sol_reward))
         print("Custom reward = %f" % custom_reward_fn(agent_test.sol_reward))
@@ -83,6 +83,7 @@ if __name__ == '__main__':
     parser.add_argument('--eta', default=0.9, type=float)
     parser.add_argument('--goals', action='store_true')
     parser.add_argument('--lr', default=1e-2, type=float)
+    parser.add_argument('--iters', default=2000, type=int)
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -105,7 +106,7 @@ if __name__ == '__main__':
 
     replay_buffer = ReplayBuffer(max_size=1000000)
 
-    critic = Critic(num_iters=1000, input_dim=STATE_DIM)
+    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
     if args.critic is not None:
         critic.load_state_dict(torch.load(args.critic))
     critic.eval()
@@ -113,7 +114,7 @@ if __name__ == '__main__':
 
     # Set up target critic network
     if args.target:
-        target_critic = Critic(num_iters=2000, input_dim=STATE_DIM)
+        target_critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128)
         target_critic.load_state_dict(critic.state_dict())
         target_critic.eval()
         target_critic.float()
@@ -129,7 +130,7 @@ if __name__ == '__main__':
     # limit = H_total + H
     limit = int((H_total + H) / args.eta)
 
-    env_seeds = [3]
+    env_seeds = [None]
 
     good_agents = []
     sol_actions = []
@@ -178,14 +179,16 @@ if __name__ == '__main__':
                 if limit >= t + H:
                     tuples = agent.train_step(critic=critic, niter=N_ITER,
                                               act_sequence=sol_actions[s][t:t+H],
-                                              goal=goal)
+                                              goal=goal,
+                                              dim=STATE_DIM)
                 else:
                     tuples = agent.train_step(critic=critic, niter=N_ITER,
                                               act_sequence=None,
-                                              goal=goal)
+                                              goal=goal,
+                                              dim=STATE_DIM)
 
                 # Add new transitions into replay buffer
-                tuples = critic.compress_states(tuples, include_goal=args.goals)
+                tuples = critic.compress_states(tuples, dim=STATE_DIM)
                 replay_buffer.concatenate(tuples)
 
             tmp_reward = np.sum(agent.sol_reward)
@@ -218,7 +221,7 @@ if __name__ == '__main__':
                     # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
                     y_batch = []
                     for j in range(len(minibatch)):
-                        if abs(reward_batch[j]) < 2.0 or True:
+                        if reward_batch[j] > 10.0:
                             y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
                         else:
                             y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
@@ -266,13 +269,13 @@ if __name__ == '__main__':
                         # print('{}'.format(critic(sf)))
                         critic.train()
 
-                    if args.target and i % 250 == 0:
+                    if args.target and i % int(args.iters / 8) == 0:
                         # Update target critic network
                         target_critic.load_state_dict(critic.state_dict())
                         target_critic.eval()
                         target_critic.float()
 
-                test_goals([None, 3], critic)
+                # test_goals([None, 3], critic)
 
         current_reward /= float(len(env_seeds))
         # writer.add_scalar('Trajectory Return', current_reward, x)
