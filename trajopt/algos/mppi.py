@@ -22,6 +22,8 @@ class MPPI(Trajectory):
                  default_act='repeat',
                  seed=123,
                  init_seq=None,
+                 reward_type='dense',
+                 reference=None
                  ):
         self.env, self.seed = env, seed
         self.n, self.m = env.observation_dim, env.action_dim
@@ -46,6 +48,10 @@ class MPPI(Trajectory):
 
         if init_seq is not None and init_seq.shape == self.act_sequence.shape:
             self.act_sequence = init_seq
+
+        # reward structure
+        self.reward_type = reward_type
+        self.reference = reference
 
     def update(self, paths, use_critic=False):
         num_traj = len(paths)
@@ -95,6 +101,8 @@ class MPPI(Trajectory):
                                       self.filter_coefs,
                                       seed,
                                       goal,
+                                      self.reward_type,
+                                      self.reference,
                                       self.paths_per_cpu,
                                       self.num_cpu,
                                       )

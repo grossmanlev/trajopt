@@ -31,6 +31,30 @@ STATE_DIM = 14
 # =======================================
 
 
+def dense_to_sparse(replay_buffer):
+    rtn_buffer = ReplayBuffer()
+    for tup in replay_buffer.buffer:
+        sparse_reward = 0
+        dist_reward = tup.reward + 0.25 * np.linalg.norm(tup.next_state[7:14])
+
+        if dist_reward >= 0.05 * -10:
+            sparse_reward = 100
+        elif dist_reward >= 0.8 * -10:
+            sparse_reward = -10
+        else:
+            sparse_reward = -100
+
+        rtn_buffer.append(
+            Tuple(
+                tup.state,
+                tup.action,
+                sparse_reward,
+                tup.next_state
+            )
+        )
+    return rtn_buffer
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('replay_buffer', default=None,
@@ -48,8 +72,9 @@ if __name__ == '__main__':
     writer = SummaryWriter()
 
     replay_buffer = pickle.load(open(args.replay_buffer, 'rb'))
+    replay_buffer = dense_to_sparse(replay_buffer)
 
-    critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.99)
+    critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.9, inner_layer=128)
     loaded_critic = None
     if args.critic is not None:
         # loaded_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size)
@@ -59,7 +84,7 @@ if __name__ == '__main__':
 
     # Set up target critic network
     if args.target:
-        target_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.99)
+        target_critic = Critic(num_iters=args.num_iters, batch_size=args.batch_size, gamma=0.9)
         target_critic.load_state_dict(critic.state_dict())
         target_critic.eval()
         target_critic.float()
@@ -95,7 +120,7 @@ if __name__ == '__main__':
         # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
         y_batch = []
         for j in range(len(minibatch)):
-            if abs(reward_batch[j]) < 2.0:
+            if reward_batch[j] > 10.0 and False:
                 y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
             else:
                 y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
@@ -117,7 +142,8 @@ if __name__ == '__main__':
 
         # calculate loss
         loss = criterion(v_batch, y_batch)
-        writer.add_scalar('Loss', loss, t)
+        if t % 10 == 0:
+            writer.add_scalar('Loss', loss, t)
 
         # do backward pass
         loss.backward()
