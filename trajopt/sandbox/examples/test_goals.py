@@ -62,7 +62,8 @@ if __name__ == '__main__':
     # critics = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75]
 
     # env_seeds = [0, 1, 2, 3, 4]
-    env_seeds = [None, 3]
+    env_seeds = [None]
+    goal = (0.1, 0.0, 0.0)
 
     # for c in critics:
     #     critic =
@@ -71,7 +72,7 @@ if __name__ == '__main__':
         # random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         # e.set_state(random_qpos, e.init_qvel)
 
-        e.reset_model(seed=seed)
+        e.reset_model(seed=seed, goal=goal)
 
         agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
                      kappa=25.0, gamma=1.0, mean=mean,
@@ -83,19 +84,19 @@ if __name__ == '__main__':
         for t in tqdm(range(H_total)):
 
             # Actor step
-            agent.train_step(critic=critic, niter=N_ITER)
+            agent.train_step(critic=critic, niter=N_ITER, goal=goal)
 
         # import pdb; pdb.set_trace()
         rewards.append(np.sum(agent.sol_reward))
         print("Trajectory reward = %f" % np.sum(agent.sol_reward))
         print("Custom reward = %f" % custom_reward_fn(agent.sol_reward))
-        # pickle.dump(agent, open('agent_116_seed_{}.pickle'.format(seed), 'wb'))
-        pickle.dump(agent, open('thesis/agent_goal_gen_{}_.pickle'.format(seed), 'wb'))
+        # pickle.dump(agent, open('agent_goal_r.pickle', 'wb'))
+        # pickle.dump(agent, open('thesis/agent_goal_gen_{}_.pickle'.format(seed), 'wb'))
 
-        # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
-        # print(e.data.site_xpos[e.target_sid])
-        # for _ in range(10):
-        #     agent.animate_result()
+        _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
+        print(e.data.site_xpos[e.target_sid])
+        for _ in range(10):
+            agent.animate_result()
 
     print("Avg. Reward: {} ({})".format(np.mean(rewards), np.std(rewards)))
 

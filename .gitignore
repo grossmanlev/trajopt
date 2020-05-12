@@ -104,3 +104,6 @@ venv.bak/
 .mypy_cache/
 
 *.pickle
+
+trajopt/sandbox/examples/runs/
+trajopt/sandbox/examples/ac_tests/

@@ -46,12 +46,23 @@ def custom_reward_fn(sol_reward):
     return int(100 in [int(elt) for elt in sol_reward])
 
 
-def test_goals(seeds, critic, dim):
+def test_goals(critic, seeds=None, goals=None, dim=14):
     print('=' * 20)
-    for seed in seeds:
-        e = get_environment(ENV_NAME, sparse_reward=True)
-        e.reset_model(seed=seed)
 
+    if seeds is not None:
+        iters = len(seeds)
+    elif goals is not None:
+        iters = len(goals)
+    else:
+        return
+
+    for i in range(iters):
+        e = get_environment(ENV_NAME, sparse_reward=True)
+        if seeds is not None:
+            e.reset_model(seed=seeds[i])
+        else:
+            e.reset_model(seed=None, goal=goals[i])
+        goal = e.get_env_state()['target_pos']
         mean = np.zeros(e.action_dim)
         sigma = 1.0*np.ones(e.action_dim)
         filter_coefs = [sigma, 0.25, 0.8, 0.0]
@@ -63,7 +74,7 @@ def test_goals(seeds, critic, dim):
                           init_seq=None)
 
         for t in tqdm(range(H_total)):
-            agent_test.train_step(critic=critic, niter=N_ITER, dim=dim)
+            agent_test.train_step(critic=critic, niter=N_ITER, dim=dim, goal=goal)
 
         print("Trajectory reward = %f" % np.sum(agent_test.sol_reward))
         print("Custom reward = %f" % custom_reward_fn(agent_test.sol_reward))
@@ -131,6 +142,7 @@ if __name__ == '__main__':
     limit = int((H_total + H) / args.eta)
 
     env_seeds = [None]
+    set_goal = (0.1, -0.1, 0.0)
 
     good_agents = []
     sol_actions = []
@@ -153,7 +165,7 @@ if __name__ == '__main__':
             #     limit = 0
 
             # e = get_environment(ENV_NAME, sparse_reward=True)
-            e.reset_model(seed=seed)
+            e.reset_model(seed=seed, goal=set_goal)
             print('Goal: {}'.format(e.get_env_state()['target_pos']))
             goal = e.get_env_state()['target_pos']
             print('*'*36)
@@ -275,7 +287,7 @@ if __name__ == '__main__':
                         target_critic.eval()
                         target_critic.float()
 
-                # test_goals([None, 3], critic)
+                test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
 
         current_reward /= float(len(env_seeds))
         # writer.add_scalar('Trajectory Return', current_reward, x)

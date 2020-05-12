@@ -34,7 +34,7 @@ if __name__ == '__main__':
                         help='number of random initializations to test')
     args = parser.parse_args()
 
-    e = get_environment(ENV_NAME, sparse_reward=True)
+    e = get_environment(ENV_NAME, sparse_reward=False)
     goal = np.zeros(3)
     e.reset_model(seed=SEED, goal=goal)
 
@@ -61,9 +61,10 @@ if __name__ == '__main__':
     np_seed = 0
     rewards = []
     custom_rewards = []
+    agents = []
 
     for _ in tqdm(range(args.iters), disable=False):
-        e = get_environment(ENV_NAME, sparse_reward=True)
+        e = get_environment(ENV_NAME, sparse_reward=False)
         e.reset_model(goal=goal)
         np.random.seed(seed=np_seed)
         random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
@@ -94,6 +95,7 @@ if __name__ == '__main__':
         # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
         # for _ in range(10):
         #     agent.animate_result()
+        agents.append(agent)
 
         np_seed += 1
 
@@ -101,6 +103,9 @@ if __name__ == '__main__':
         np.mean(rewards), np.std(rewards)))
     print("Avg. Custom Reward: {} ({})".format(
         np.mean(custom_rewards), np.std(custom_rewards)))
+
+    for agent in agents:
+        agent.animate_result()
 
     # agent = pickle.load(open('116_agent.pickle', 'rb'))
 
