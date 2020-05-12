@@ -142,7 +142,7 @@ if __name__ == '__main__':
     limit = int((H_total + H) / args.eta)
 
     env_seeds = [None]
-    set_goal = (0.1, -0.1, 0.0)
+    set_goal = (0.0, 0.0, 0.0)
 
     good_agents = []
     sol_actions = []
@@ -157,12 +157,8 @@ if __name__ == '__main__':
         limit = int((H_total + H) / args.eta)
         # limit = 0
         # limit = int(limit * args.eta)
-        current_reward = 0.0
         for x in range(100):
             limit = int(limit * args.eta)
-            # Testing just using reference trajectory
-            # if x > 18:
-            #     limit = 0
 
             # e = get_environment(ENV_NAME, sparse_reward=True)
             e.reset_model(seed=seed, goal=set_goal)
@@ -204,7 +200,6 @@ if __name__ == '__main__':
                 replay_buffer.concatenate(tuples)
 
             tmp_reward = np.sum(agent.sol_reward)
-            current_reward += tmp_reward
             print("Trajectory reward = %f" % tmp_reward)
             writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
             writer_x += 1
@@ -266,20 +261,6 @@ if __name__ == '__main__':
 
                     if i % 500 == 0:
                         print('Loss: {}'.format(loss))
-                        # s0 = torch.zeros(STATE_DIM)
-                        # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
-                        #                    0.01832143, -1.52851301, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                        #                    0.0, 0.0, 0.0])
-                        # # sf = torch.tensor([10.99164932,  0.06841799, -1.50792112, -1.56400837, -1.52414601,
-                        # #                    0.01832143, -1.52851301])
-                        # # if args.goals:
-                        # #     sf = torch.cat((sf, torch.zeros(3)))
-                        # s0 = s0.unsqueeze(0)
-                        # sf = sf.unsqueeze(0)
-                        # critic.eval()
-                        # print('{}'.format(critic(s0)))
-                        # print('{}'.format(critic(sf)))
-                        critic.train()
 
                     if args.target and i % int(args.iters / 8) == 0:
                         # Update target critic network
@@ -287,9 +268,8 @@ if __name__ == '__main__':
                         target_critic.eval()
                         target_critic.float()
 
-                test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
+                # test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
 
-        current_reward /= float(len(env_seeds))
         # writer.add_scalar('Trajectory Return', current_reward, x)
 
     # Save the replay buffer
