@@ -95,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--goals', action='store_true')
     parser.add_argument('--lr', default=1e-2, type=float)
     parser.add_argument('--iters', default=2000, type=int)
+    parser.add_argument('--save', default=False, type=bool)
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -104,7 +105,18 @@ if __name__ == '__main__':
     # Writer will output to ./runs/ directory by default
     writer = SummaryWriter()
 
-    e = get_environment(ENV_NAME, sparse_reward=True)
+    # Load reference trajectory
+    reference_agent = pickle.load(open('dense_agent.pickle', 'rb'))
+    reference_pos = []
+    for i in range(len(reference_agent.sol_state)):
+        reference_agent.env.set_env_state(reference_agent.sol_state[i])
+        reference_pos.append(
+            reference_agent.env.data.site_xpos[reference_agent.env.hand_sid])
+    reference_pos = np.array(reference_pos)
+    reward_type = 'tracking'
+    reference = reference_pos
+
+    e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
     # e.sparse_reward = True
     # e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
@@ -138,7 +150,6 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     eta = args.eta
-    # limit = H_total + H
     limit = int((H_total + H) / args.eta)
 
     env_seeds = [None]
@@ -154,47 +165,28 @@ if __name__ == '__main__':
 
     writer_x = 0
     for s, seed in enumerate(env_seeds):
-        limit = int((H_total + H) / args.eta)
-        # limit = 0
-        # limit = int(limit * args.eta)
-        for x in range(100):
-            limit = int(limit * args.eta)
+        alpha = 1.0
 
+        for x in range(100):
             # e = get_environment(ENV_NAME, sparse_reward=True)
-            e.reset_model(seed=seed, goal=set_goal)
+            e.reset_model(seed=seed, goal=set_goal, alpha=alpha)
             print('Goal: {}'.format(e.get_env_state()['target_pos']))
             goal = e.get_env_state()['target_pos']
             print('*'*36)
             print('Round: {}, Limit: {}'.format(x, limit))
             print()
-            critic.eval()
-            if limit >= H:
-                agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-                             kappa=25.0, gamma=1.0, mean=mean,
-                             filter_coefs=filter_coefs,
-                             default_act='mean', seed=SEED,
-                             init_seq=init_seqs[s])
-            else:
-                agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-                             kappa=25.0, gamma=1.0, mean=mean,
-                             filter_coefs=filter_coefs,
-                             default_act='mean', seed=SEED,
-                             init_seq=None)
+            # critic.eval()
+
+            agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+                         kappa=25.0, gamma=1.0, mean=mean,
+                         filter_coefs=filter_coefs,
+                         default_act='mean', seed=SEED,
+                         reward_type=reward_type, reference=reference)
 
             ts = timer.time()
             for t in tqdm(range(H_total)):
-
-                if limit >= t + H:
-                    tuples = agent.train_step(critic=critic, niter=N_ITER,
-                                              act_sequence=sol_actions[s][t:t+H],
-                                              goal=goal,
-                                              dim=STATE_DIM)
-                else:
-                    tuples = agent.train_step(critic=critic, niter=N_ITER,
-                                              act_sequence=None,
-                                              goal=goal,
-                                              dim=STATE_DIM)
-
+                tuples = agent.train_step(critic=critic, niter=N_ITER,
+                                          goal=goal, dim=STATE_DIM)
                 # Add new transitions into replay buffer
                 tuples = critic.compress_states(tuples, dim=STATE_DIM)
                 replay_buffer.concatenate(tuples)
@@ -204,8 +196,9 @@ if __name__ == '__main__':
             writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
             writer_x += 1
 
-            pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}_{}.pickle'.format(x, s), 'wb'))
-            torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}_{}.pt'.format(x, s))
+            if args.save:
+                pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}_{}.pickle'.format(x, s), 'wb'))
+                torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}_{}.pt'.format(x, s))
 
             if args.train:
                 # Critic step
@@ -269,7 +262,7 @@ if __name__ == '__main__':
                         target_critic.float()
 
                 # test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
-
+            alpha *= eta
         # writer.add_scalar('Trajectory Return', current_reward, x)
 
     # Save the replay buffer

@@ -36,6 +36,8 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # self.init_qpos[0] = -1.0
         # self.init_qpos[1] = 1.0
 
+        self.alpha = 1.0
+
     def _step(self, a):
         self.do_simulation(a, self.frame_skip)
         # keep track of env timestep (needed for continual envs)
@@ -57,6 +59,21 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             dist = np.linalg.norm(hand_pos - ref_pos)
             reward = -10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
             # reward = -10.0 * dist
+        elif self.reward_type == 'cooling':
+            sparse_reward = 0.0
+            if dist < 0.05:
+                sparse_reward = 100.0
+            elif dist > 0.8:
+                sparse_reward = -100.0
+            else:
+                sparse_reward = -10.0
+
+            track_reward = 0.0
+            ref_pos = self.reference[self.env_timestep]  # reference position
+            dist = np.linalg.norm(hand_pos - ref_pos)
+            track_reward = -10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
+
+            reward = (alpha * track_reward) + ((1.0 - alpha) * sparse_reward)
         else:
             reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
 
@@ -97,10 +114,12 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.data.site_xpos[self.target_sid] = target_pos
         self.sim.forward()
 
-    def reset_model(self, seed=None, goal=None):
+    def reset_model(self, seed=None, goal=None, alpha=None):
         if seed is not None:
             self.seeding = True
             self._seed(seed)
+        if alpha is not None:
+            self.alpha = alpha
         self.robot_reset()
         self.target_reset(goal)
         self.env_timestep = 0  # reset timestep
