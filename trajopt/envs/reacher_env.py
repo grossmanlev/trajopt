@@ -6,14 +6,19 @@ import os
 
 
 class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
-    def __init__(self, sparse_reward=False):
+    def __init__(self, reward_type='dense', reference=None):
 
         # trajopt specific attributes
         self.env_name = 'reacher_7dof'
         self.seeding = False
         self.real_step = True
         self.env_timestep = 0
-        self.sparse_reward = sparse_reward
+
+        self.reward_type = reward_type  # 'dense', 'sparse', 'tracking'
+        self.reference = reference  # reference trajectory (np.array)
+        # ensure if tracking reward, then we have a reference
+        assert ((reward_type is not 'tracking') or
+                (reward_type is 'tracking' and reference is not None))
 
         # placeholder
         self.hand_sid = -2
@@ -33,24 +38,30 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
     def _step(self, a):
         self.do_simulation(a, self.frame_skip)
+        # keep track of env timestep (needed for continual envs)
+        self.env_timestep += 1
         hand_pos = self.data.site_xpos[self.hand_sid]
         target_pos = self.data.site_xpos[self.target_sid]
         dist = np.linalg.norm(hand_pos-target_pos)
         reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
-        if self.sparse_reward:
+
+        if self.reward_type == 'sparse':
             if dist < 0.05:
                 reward = 100.0
             elif dist > 0.8:
                 reward = -100.0
             else:
                 reward = -10.0
+        elif self.reward_type == 'tracking':
+            ref_pos = self.reference[self.env_timestep]  # reference position
+            dist = np.linalg.norm(hand_pos - ref_pos)
+            reward = -10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
+            # reward = -10.0 * dist
         else:
             reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
+
         ob = self._get_obs()
-        # keep track of env timestep (needed for continual envs)
-        self.env_timestep += 1
         rtn_dct = self.get_env_infos()
-        # rtn_dct['sparse_reward'] =
         return ob, reward, False, rtn_dct
 
     def step(self, a):
@@ -92,6 +103,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             self._seed(seed)
         self.robot_reset()
         self.target_reset(goal)
+        self.env_timestep = 0  # reset timestep
         return self._get_obs()
 
     # --------------------------------
