@@ -91,3 +91,20 @@ class Critic(nn.Module):
                 next_state)
 
         return tuples
+
+    def compress_agent(self, agent, dim=14):
+        """ Put agent solution trajectory into Tuple format """
+        tuples = []
+        for i in range(len(agent.sol_obs) - 1):
+            state = self.compress_state(
+                agent.sol_obs[i], dim=dim)
+            next_state = self.compress_state(
+                agent.sol_obs[i+1], dim=dim)
+
+            tuples.append(Tuple(
+                state,
+                agent.sol_act[i],
+                agent.sol_reward[i],
+                next_state))
+
+        return tuples
