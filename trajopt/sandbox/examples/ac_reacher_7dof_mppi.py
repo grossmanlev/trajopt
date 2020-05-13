@@ -127,7 +127,7 @@ if __name__ == '__main__':
     sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
     init_seq = sol_actions[:H]
 
-    replay_buffer = ReplayBuffer(max_size=1000000)
+    replay_buffer = ReplayBuffer(max_size=10000)
 
     critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
     if args.critic is not None:
@@ -183,13 +183,17 @@ if __name__ == '__main__':
                          default_act='mean', seed=SEED,
                          reward_type=reward_type, reference=reference)
 
+            samples = []
             ts = timer.time()
             for t in tqdm(range(H_total)):
                 tuples = agent.train_step(critic=critic, niter=N_ITER,
                                           goal=goal, dim=STATE_DIM)
-                # Add new transitions into replay buffer
-                tuples = critic.compress_states(tuples, dim=STATE_DIM)
-                replay_buffer.concatenate(tuples)
+                indices = np.random.choice(list(range(len(tuples))), 10, replace=False)
+                tuples = [tuples[i] for i in indices]  # get sample of tuples
+                tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
+                samples += tuples
+            samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
+            replay_buffer.concatenate(samples)  # add to replay buffer
 
             tmp_reward = np.sum(agent.sol_reward)
             print("Trajectory reward = %f" % tmp_reward)
