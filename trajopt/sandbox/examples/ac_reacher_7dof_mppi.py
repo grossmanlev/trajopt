@@ -90,7 +90,7 @@ if __name__ == '__main__':
                         help='train the critic net?')
     parser.add_argument('--save_buffer', action='store_true',
                         help='save the replay buffer?')
-    parser.add_argument('--target', action='store_true')
+    parser.add_argument('--target', default=True, type=bool)
     parser.add_argument('--eta', default=0.9, type=float)
     parser.add_argument('--goals', action='store_true')
     parser.add_argument('--lr', default=1e-2, type=float)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         reference_pos.append(
             reference_agent.env.data.site_xpos[reference_agent.env.hand_sid])
     reference_pos = np.array(reference_pos)
-    reward_type = 'tracking'
+    reward_type = 'cooling'
     reference = reference_pos
 
     e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)

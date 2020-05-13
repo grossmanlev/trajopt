@@ -13,12 +13,13 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.seeding = False
         self.real_step = True
         self.env_timestep = 0
+        self.alpha = 1.0
 
         self.reward_type = reward_type  # 'dense', 'sparse', 'tracking'
         self.reference = reference  # reference trajectory (np.array)
         # ensure if tracking reward, then we have a reference
-        assert ((reward_type is not 'tracking') or
-                (reward_type is 'tracking' and reference is not None))
+        # assert ((reward_type is not 'tracking') or
+        #         (reward_type is 'tracking' and reference is not None))
 
         # placeholder
         self.hand_sid = -2
@@ -35,8 +36,6 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         # self.init_qpos[0] = -1.0
         # self.init_qpos[1] = 1.0
-
-        self.alpha = 1.0
 
     def _step(self, a):
         self.do_simulation(a, self.frame_skip)
@@ -73,7 +72,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             dist = np.linalg.norm(hand_pos - ref_pos)
             track_reward = -10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
 
-            reward = (alpha * track_reward) + ((1.0 - alpha) * sparse_reward)
+            reward = (self.alpha * track_reward) + ((1.0 - self.alpha) * sparse_reward)
         else:
             reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
 

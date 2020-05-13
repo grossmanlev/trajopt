@@ -39,7 +39,10 @@ agent = MPPI(e, H=16, paths_per_cpu=40, num_cpu=1,
 
 ts = timer.time()
 for t in tqdm(range(H_total)):
-    agent.train_step(niter=N_ITER, goal=goal)
+    tuples = agent.train_step(niter=N_ITER, goal=goal)
+    indices = np.random.choice(list(range(len(tuples))), 10, replace=False)
+    import pdb; pdb.set_trace()
+    # print(len(tuples))
     # if t % 25 == 0 and t > 0:
     #     print("==============>>>>>>>>>>> saving progress ")
     #     pickle.dump(agent, open(PICKLE_FILE, 'wb'))
