@@ -124,6 +124,9 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.env_timestep = 0  # reset timestep
         return self._get_obs()
 
+    def reset(self):
+        return self.reset_model()
+
     # --------------------------------
     # get and set states
     # --------------------------------

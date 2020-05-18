@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--goals', action='store_true')
     parser.add_argument('--lr', default=1e-2, type=float)
     parser.add_argument('--iters', default=2000, type=int)
-    parser.add_argument('--save', default=False, type=bool)
+    parser.add_argument('--save', action='store_true')
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -116,8 +116,8 @@ if __name__ == '__main__':
     reward_type = 'cooling'
     reference = reference_pos
 
-    e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
-    # e.sparse_reward = True
+    # e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
+    e = get_environment(ENV_NAME, reward_type='sparse')  # need sparse for sol_reward
     # e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
@@ -129,7 +129,7 @@ if __name__ == '__main__':
 
     replay_buffer = ReplayBuffer(max_size=10000)
 
-    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
+    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.1)
     if args.critic is not None:
         critic.load_state_dict(torch.load(args.critic))
     critic.eval()
@@ -143,7 +143,7 @@ if __name__ == '__main__':
         target_critic.float()
 
     optimizer = optim.Adam(critic.parameters(), lr=args.lr)
-    milestones = list(range(0, 2000 * 100, int(2000 * 100 / 4)))
+    milestones = list(range(0, args.iters * 100, int(args.iters * 100 / 4)))
     # milestones = [100]
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=milestones, gamma=0.1)
@@ -188,10 +188,11 @@ if __name__ == '__main__':
             for t in tqdm(range(H_total)):
                 tuples = agent.train_step(critic=critic, niter=N_ITER,
                                           goal=goal, dim=STATE_DIM)
-                indices = np.random.choice(list(range(len(tuples))), 10, replace=False)
-                tuples = [tuples[i] for i in indices]  # get sample of tuples
-                tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
-                samples += tuples
+                # indices = np.random.choice(list(range(len(tuples))), 2, replace=False)
+                # tuples = [tuples[i] for i in indices]  # get sample of tuples
+                # tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
+                # samples += tuples
+            samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
             samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
             replay_buffer.concatenate(samples)  # add to replay buffer
 
