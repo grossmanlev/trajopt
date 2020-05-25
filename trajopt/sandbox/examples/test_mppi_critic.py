@@ -66,6 +66,7 @@ if __name__ == '__main__':
     for _ in tqdm(range(args.iters), disable=False):
         e = get_environment(ENV_NAME, sparse_reward=False)
         e.reset_model(goal=goal)
+
         np.random.seed(seed=np_seed)
         random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
         # print(random_qpos)
@@ -79,6 +80,7 @@ if __name__ == '__main__':
                      init_seq=None)
 
         ts = timer.time()
+
         for t in tqdm(range(H_total), disable=True):
 
             # Actor step
@@ -88,7 +90,9 @@ if __name__ == '__main__':
         custom_reward = custom_reward_fn(agent.sol_reward)
         rewards.append(reward)
         custom_rewards.append(custom_reward)
+
         # pickle.dump(agent, open('sparse_reward_agent.pickle', 'wb'))
+
         print("Trajectory reward = %f" % reward)
         print("Custom reward = %f" % custom_reward)
 
