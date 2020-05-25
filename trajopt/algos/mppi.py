@@ -87,8 +87,15 @@ class MPPI(Trajectory):
         for i in range(len(paths)):
             scores[i] = 0.0
             if use_critic:
-                for t in range(paths[i]["critic_rewards"].shape[0]):
-                    scores[i] += (self.gamma**t)*paths[i]["critic_rewards"][t]
+                T = paths[i]["rewards"].shape[0]
+                for t in range(T):
+                    if t < T - 1:
+                        scores[i] += (self.gamma**t)*paths[i]["rewards"][t]
+                    else:
+                        scores[i] += (self.gamma**t)*paths[i]["critic_rewards"][t]
+
+                # for t in range(paths[i]["critic_rewards"].shape[0]):
+                #     scores[i] += (self.gamma**t)*paths[i]["critic_rewards"][t]
             else:
                 for t in range(paths[i]["rewards"].shape[0]):
                     scores[i] += (self.gamma**t)*paths[i]["rewards"][t]
@@ -103,6 +110,7 @@ class MPPI(Trajectory):
                                       goal,
                                       self.reward_type,
                                       self.reference,
+                                      self.env.alpha,
                                       self.paths_per_cpu,
                                       self.num_cpu,
                                       )
@@ -119,36 +127,51 @@ class MPPI(Trajectory):
 
             for i, path in enumerate(paths):
                 critic_rewards = []
+                obs = torch.tensor(path["next_observations"], dtype=torch.float32)
+                if critic is not None:
+                    if dim == 14:  # qp and qvs
+                        critic_state = obs[:, :14]
+                    elif dim == 17:  # qp, qv, goal_pos
+                        critic_state = np.concatenate((obs[:, :14], obs[:, -3:]))
+                    elif dim == 3:  # hand_pos
+                        critic_state = obs[:, -6:-3]
+                    elif dim == 6:  # hand_pos, goal_pos
+                        critic_state = obs[:, -6:]
+                    # critic_state = torch.tensor(critic_state, dtype=torch.float32)
+                    # print(critic_state.shape)
+                    # import pdb; pdb.set_trace()
+                    # critic_state = critic_state.unsqueeze(0)
+                    critic_rewards = critic(critic_state).detach().numpy()
 
-                for j in range(len(path["states"])):
-                    replay_tuples.append(
-                        Tuple(path["observations"][j],
-                              path["actions"][j],
-                              path["rewards"][j],
-                              path["next_observations"][j]))
+                # for j in range(len(path["states"])):
+                #     replay_tuples.append(
+                #         Tuple(path["observations"][j],
+                #               path["actions"][j],
+                #               path["rewards"][j],
+                #               path["next_observations"][j]))
 
-                    # if j < len(path["states"]) - 1:
-                    #     replay_tuples.append(
-                    #         Tuple(path["states"][j],
-                    #               path["actions"][j],
-                    #               path["rewards"][j],
-                    #               path["states"][j + 1]))
+                #     # if j < len(path["states"]) - 1:
+                #     #     replay_tuples.append(
+                #     #         Tuple(path["states"][j],
+                #     #               path["actions"][j],
+                #     #               path["rewards"][j],
+                #     #               path["states"][j + 1]))
 
-                    # Compute state values based on Critic
-                    if critic is not None:
-                        if dim == 14:  # qp and qv
-                            critic_state = path["next_observations"][j][:14]
-                        elif dim == 17:  # qp, qv, goal_pos
-                            critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
-                        elif dim == 3:  # hand_pos
-                            critic_state = path["next_observations"][j][-6:-3]
-                        elif dim == 6:  # hand_pos, goal_pos
-                            critic_state = path["next_observations"][j][-6:]
+                #     # Compute state values based on Critic
+                #     if critic is not None:
+                #         if dim == 14:  # qp and qv
+                #             critic_state = path["next_observations"][j][:14]
+                #         elif dim == 17:  # qp, qv, goal_pos
+                #             critic_state = np.concatenate((path["next_observations"][j][:14], path["next_observations"][j][-3:]))
+                #         elif dim == 3:  # hand_pos
+                #             critic_state = path["next_observations"][j][-6:-3]
+                #         elif dim == 6:  # hand_pos, goal_pos
+                #             critic_state = path["next_observations"][j][-6:]
 
-                        critic_state = torch.tensor(critic_state, dtype=torch.float32)
-                        critic_state = critic_state.unsqueeze(0)
-                        critic_reward = critic(critic_state).detach().numpy()
-                        critic_rewards.append(critic_reward)
+                #         critic_state = torch.tensor(critic_state, dtype=torch.float32)
+                #         critic_state = critic_state.unsqueeze(0)
+                #         critic_reward = critic(critic_state).detach().numpy()
+                #         critic_rewards.append(critic_reward)
 
                 paths[i]["critic_rewards"] = np.array(critic_rewards)
 

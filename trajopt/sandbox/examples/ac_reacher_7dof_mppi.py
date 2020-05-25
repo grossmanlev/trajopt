@@ -82,6 +82,25 @@ def test_goals(critic, seeds=None, goals=None, dim=14):
     print('=' * 20)
 
 
+def test_critic(critic, dim=14):
+    e = get_environment(ENV_NAME, reward_type='sparse')
+    set_goal = (0.0, 0.0, 0.0)
+    e.reset_model(seed=None, goal=set_goal)
+    mean = np.zeros(e.action_dim)
+    sigma = 1.0*np.ones(e.action_dim)
+    filter_coefs = [sigma, 0.25, 0.8, 0.0]
+
+    test_agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
+                      kappa=25.0, gamma=1.0, mean=mean,
+                      filter_coefs=filter_coefs,
+                      default_act='mean', seed=SEED,
+                      reward_type='sparse')
+    for t in tqdm(range(H_total)):
+        test_agent.train_step(critic=critic, niter=N_ITER,
+                              goal=set_goal, dim=dim)
+    return test_agent
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--critic', default=None,
@@ -129,7 +148,7 @@ if __name__ == '__main__':
 
     replay_buffer = ReplayBuffer(max_size=10000)
 
-    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.1)
+    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
     if args.critic is not None:
         critic.load_state_dict(torch.load(args.critic))
     critic.eval()
@@ -164,6 +183,7 @@ if __name__ == '__main__':
         init_seqs.append(sol_actions[-1][:H])
 
     writer_x = 0
+    rewards = []
     for s, seed in enumerate(env_seeds):
         alpha = 1.0
 
@@ -196,7 +216,9 @@ if __name__ == '__main__':
             samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
             replay_buffer.concatenate(samples)  # add to replay buffer
 
+            # test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
             tmp_reward = np.sum(agent.sol_reward)
+            rewards.append(tmp_reward)
             print("Trajectory reward = %f" % tmp_reward)
             writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
             writer_x += 1
@@ -270,6 +292,7 @@ if __name__ == '__main__':
             alpha *= eta
         # writer.add_scalar('Trajectory Return', current_reward, x)
 
+    print(rewards)
     # Save the replay buffer
     if args.save_buffer:
         print("==============>>>>>>>>>>> saving replay buffer")

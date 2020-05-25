@@ -47,7 +47,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
 
         if self.reward_type == 'sparse':
-            if dist < 0.05:
+            if dist < 0.025:
                 reward = 100.0
             elif dist > 0.8:
                 reward = -100.0
@@ -60,7 +60,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             # reward = -10.0 * dist
         elif self.reward_type == 'cooling':
             sparse_reward = 0.0
-            if dist < 0.05:
+            if dist < 0.025:
                 sparse_reward = 100.0
             elif dist > 0.8:
                 sparse_reward = -100.0
