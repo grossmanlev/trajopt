@@ -115,6 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=1e-2, type=float)
     parser.add_argument('--iters', default=2000, type=int)
     parser.add_argument('--save', action='store_true')
+    parser.add_argument('--POLO', action='store_true')
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -186,7 +187,8 @@ if __name__ == '__main__':
     rewards = []
     for s, seed in enumerate(env_seeds):
         alpha = 1.0
-
+        if args.POLO:
+            alpha = 0.0
         for x in range(100):
             # e = get_environment(ENV_NAME, sparse_reward=True)
             e.reset_model(seed=seed, goal=set_goal, alpha=alpha)
@@ -216,8 +218,8 @@ if __name__ == '__main__':
             samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
             replay_buffer.concatenate(samples)  # add to replay buffer
 
-            # test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
-            tmp_reward = np.sum(agent.sol_reward)
+            test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
+            tmp_reward = np.sum(test_agent.sol_reward)
             rewards.append(tmp_reward)
             print("Trajectory reward = %f" % tmp_reward)
             writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
@@ -293,6 +295,9 @@ if __name__ == '__main__':
         # writer.add_scalar('Trajectory Return', current_reward, x)
 
     print(rewards)
+    if args.save:
+        np.save(AC_SAVE_DIR + '/sparse_rewards.npy', np.array(rewards))
+
     # Save the replay buffer
     if args.save_buffer:
         print("==============>>>>>>>>>>> saving replay buffer")

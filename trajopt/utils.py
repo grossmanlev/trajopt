@@ -70,7 +70,11 @@ def do_env_rollout(env_name, start_state, act_list, goal, reward_type, reference
     H = act_list[0].shape[0]
     N = len(act_list)
     for i in range(N):
-        e.set_env_state(start_state)
+        if isinstance(goal, int):  # humanoid pybullet save state
+            e.set_env_state(goal)
+        else:
+            e.set_env_state(start_state)
+
         obs = []
         act = []
         rewards = []
@@ -186,4 +190,3 @@ def _try_multiprocess(args_list, num_cpu, max_process_time, max_timeouts):
         pool.join()
 
     return results
-

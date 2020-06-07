@@ -69,7 +69,10 @@ class MPPI(Trajectory):
         # accept first action and step
         self.sol_act.append(act_sequence[0].copy())
         state_now = self.sol_state[-1].copy()
-        self.env.set_env_state(state_now)
+        if self.env.env_name == 'HumanoidDeepMimicBackflipBulletEnv-v1':
+            self.env.set_env_state(self.env.env_timestep)
+        else:
+            self.env.set_env_state(state_now)
         _, r, _, _ = self.env.step(act_sequence[0])
         self.sol_state.append(self.env.get_env_state().copy())
         self.sol_obs.append(self.env._get_obs())
@@ -176,6 +179,7 @@ class MPPI(Trajectory):
                 paths[i]["critic_rewards"] = np.array(critic_rewards)
 
             self.update(paths, use_critic=(critic is not None))
+
         self.advance_time(act_sequence=act_sequence)
         return replay_tuples
         # return dict(states=states, actions=actions, rewards=rewards)

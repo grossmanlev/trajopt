@@ -10,7 +10,7 @@ from trajopt.models.critic_nets import Critic
 # =======================================
 ENV_NAME = 'reacher_7dof'
 PICKLE_FILE = ENV_NAME + '_mppi.pickle'
-SEED = 2
+SEED = 3
 N_ITER = 5
 H_total = 100
 STATE_DIM = 14
@@ -32,8 +32,8 @@ reference = reference_pos
 replay_buffer = ReplayBuffer(max_size=10000)
 
 # e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
-e = get_environment(ENV_NAME, reward_type='sparse')
-e.reset_model(seed=SEED, goal=goal)
+e = get_environment(ENV_NAME, reward_type='sparse', reference=None)
+e.reset_model(seed=SEED, goal=goal, alpha=1.0)
 mean = np.zeros(e.action_dim)
 sigma = 1.0*np.ones(e.action_dim)
 filter_coefs = [sigma, 0.25, 0.8, 0.0]
@@ -47,13 +47,13 @@ critic = Critic(input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
 ts = timer.time()
 samples = []
 for t in tqdm(range(H_total)):
-    tuples = agent.train_step(niter=N_ITER, goal=goal)
-    indices = np.random.choice(list(range(len(tuples))), 10, replace=False)
-    tuples = [tuples[i] for i in indices]  # get sample of tuples
-    tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
-    samples += tuples
-samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
-replay_buffer.concatenate(samples)  # add to replay buffer
+    agent.train_step(niter=N_ITER, goal=goal)
+    # indices = np.random.choice(list(range(len(tuples))), 10, replace=False)
+    # tuples = [tuples[i] for i in indices]  # get sample of tuples
+    # tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
+    # samples += tuples
+# samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
+# replay_buffer.concatenate(samples)  # add to replay buffer
 
 # pickle.dump(agent, open('dense_agent.pickle', 'wb'))
 # agent = pickle.load(open(PICKLE_FILE, 'rb'))
