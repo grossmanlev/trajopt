@@ -136,20 +136,20 @@ if __name__ == '__main__':
     reward_type = 'cooling'
     reference = reference_pos
 
-    # e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
     e = get_environment(ENV_NAME, reward_type='sparse')  # need sparse for sol_reward
-    # e.reset_model(seed=SEED)
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
 
-    # good_agent = pickle.load(open('116_agent.pickle', 'rb'))
-    # sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
-    # init_seq = sol_actions[:H]
-
     replay_buffer = ReplayBuffer(max_size=10000)
 
-    critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128, batch_size=128, gamma=0.9)
+    critic = Critic(
+        num_iters=args.iters,
+        input_dim=STATE_DIM,
+        inner_layer=128,
+        batch_size=128,
+        gamma=0.9
+    )
     if args.critic is not None:
         critic.load_state_dict(torch.load(args.critic))
     critic.eval()
@@ -157,142 +157,130 @@ if __name__ == '__main__':
 
     # Set up target critic network
     if args.target:
-        target_critic = Critic(num_iters=args.iters, input_dim=STATE_DIM, inner_layer=128)
+        target_critic = Critic(
+            num_iters=args.iters,
+            input_dim=STATE_DIM,
+            inner_layer=128
+        )
         target_critic.load_state_dict(critic.state_dict())
         target_critic.eval()
         target_critic.float()
 
+    # set up optimizer
     optimizer = optim.Adam(critic.parameters(), lr=args.lr)
     milestones = list(range(0, args.iters * 100, int(args.iters * 100 / 4)))
-    # milestones = [100]
     scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer, milestones=milestones, gamma=0.1)
     criterion = nn.MSELoss()
 
     eta = args.eta
-    limit = int((H_total + H) / args.eta)
-
-    env_seeds = [None]
     set_goal = (0.0, 0.0, 0.0)
-
-    # good_agents = []
-    # sol_actions = []
-    # init_seqs = []
-    # for seed in env_seeds:
-    #     good_agents.append(pickle.load(open('agent_116_seed_{}.pickle'.format(seed), 'rb')))
-    #     sol_actions.append(np.array(good_agents[-1].sol_act))
-    #     init_seqs.append(sol_actions[-1][:H])
 
     writer_x = 0
     rewards = []
-    for s, seed in enumerate(env_seeds):
-        alpha = 1.0
-        if args.POLO:
-            alpha = 0.0
-        for x in range(100):
-            # e = get_environment(ENV_NAME, sparse_reward=True)
-            e.reset_model(seed=seed, goal=set_goal, alpha=alpha)
-            print('Goal: {}'.format(e.get_env_state()['target_pos']))
-            goal = e.get_env_state()['target_pos']
-            print('*'*36)
-            print('Round: {}, Limit: {}'.format(x, limit))
-            print()
-            # critic.eval()
 
-            agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
-                         kappa=25.0, gamma=1.0, mean=mean,
-                         filter_coefs=filter_coefs,
-                         default_act='mean', seed=SEED,
-                         reward_type=reward_type, reference=reference)
+    # set alpha parameter to determine level of tracking vs. learned controller
+    alpha = 1.0
+    if args.POLO:
+        alpha = 0.0
 
-            samples = []
-            ts = timer.time()
-            for t in tqdm(range(H_total)):
-                tuples = agent.train_step(critic=critic, niter=N_ITER,
-                                          goal=goal, dim=STATE_DIM)
-                # indices = np.random.choice(list(range(len(tuples))), 2, replace=False)
-                # tuples = [tuples[i] for i in indices]  # get sample of tuples
-                # tuples = critic.compress_states(tuples, dim=STATE_DIM)  # format tuples
-                # samples += tuples
-            samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
-            samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
-            replay_buffer.concatenate(samples)  # add to replay buffer
+    for x in range(100):
+        e.reset_model(seed=None, goal=set_goal, alpha=alpha)
+        print('Goal: {}'.format(e.get_env_state()['target_pos']))
+        goal = e.get_env_state()['target_pos']
+        print('*'*36)
+        print('Round: {}, Alpha: {}'.format(x, alpha))
+        print()
 
-            # test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
-            tmp_reward = np.sum(agent.sol_reward)
-            rewards.append(tmp_reward)
-            print("Trajectory reward = %f" % tmp_reward)
-            writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
-            writer_x += 1
+        agent = MPPI(
+            e, H=H, paths_per_cpu=40, num_cpu=1,
+            kappa=25.0, gamma=1.0, mean=mean,
+            filter_coefs=filter_coefs,
+            default_act='mean', seed=SEED,
+            reward_type=reward_type, reference=reference
+        )
 
-            if args.save:
-                pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}_{}.pickle'.format(x, s), 'wb'))
-                torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}_{}.pt'.format(x, s))
+        samples = []
+        ts = timer.time()
+        for t in tqdm(range(H_total)):
+            tuples = agent.train_step(
+                critic=critic, niter=N_ITER, goal=goal, dim=STATE_DIM)
 
-            if args.train:
-                # Critic step
-                for i in tqdm(range(critic.num_iters)):
-                    minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
+        samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
+        samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
+        replay_buffer.concatenate(samples)  # add to replay buffer
 
-                    # unpack minibatch
-                    state_batch = torch.stack(tuple(torch.tensor(d.state, dtype=torch.float32) for d in minibatch))
-                    action_batch = torch.stack(tuple(torch.tensor(d.action, dtype=torch.float32) for d in minibatch))
-                    reward_batch = torch.tensor([d.reward for d in minibatch], dtype=torch.float32)
-                    # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
-                    next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
+        # test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
+        tmp_reward = np.sum(agent.sol_reward)
+        rewards.append(tmp_reward)
+        print("Trajectory reward = %f" % tmp_reward)
+        writer.add_scalar('Trajectory Return', tmp_reward, writer_x)
+        writer_x += 1
 
-                    # get output for the next state
-                    if args.target:
-                        output_batch = target_critic(next_state_batch)
+        if args.save:
+            pickle.dump(agent, open(AC_SAVE_DIR + '/ac_test_agent_{}_{}.pickle'.format(x, s), 'wb'))
+            torch.save(critic.state_dict(), AC_SAVE_DIR + '/ac_test_critic_{}_{}.pt'.format(x, s))
+
+        if args.train:
+            # Critic step
+            for i in tqdm(range(critic.num_iters)):
+                minibatch = replay_buffer.get_minibatch(size=critic.batch_size)
+
+                # unpack minibatch
+                state_batch = torch.stack(tuple(torch.tensor(d.state, dtype=torch.float32) for d in minibatch))
+                action_batch = torch.stack(tuple(torch.tensor(d.action, dtype=torch.float32) for d in minibatch))
+                reward_batch = torch.tensor([d.reward for d in minibatch], dtype=torch.float32)
+                # reward_batch = torch.cat(tuple(torch.tensor(d.reward) for d in minibatch))
+                next_state_batch = torch.stack(tuple(torch.tensor(d.next_state, dtype=torch.float32) for d in minibatch))
+
+                # get output for the next state
+                if args.target:
+                    output_batch = target_critic(next_state_batch)
+                else:
+                    output_batch = critic(next_state_batch)
+
+                # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
+                y_batch = []
+                for j in range(len(minibatch)):
+                    if reward_batch[j] > 10.0:
+                        y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
                     else:
-                        output_batch = critic(next_state_batch)
+                        y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
+                y_batch = torch.stack(tuple(y_batch))
+                # y_batch = torch.stack(
+                #     tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
+                #           else reward_batch[i] + critic.gamma * output_batch[i]
+                #           for i in range(len(minibatch))))
 
-                    # set y_j to r_j for terminal state, otherwise to r_j + gamma*max(V)
-                    y_batch = []
-                    for j in range(len(minibatch)):
-                        if reward_batch[j] > 10.0:
-                            y_batch.append(reward_batch[j] + 0.0 * output_batch[j])
-                        else:
-                            y_batch.append(reward_batch[j] + critic.gamma * output_batch[j])
-                    y_batch = torch.stack(tuple(y_batch))
-                    # y_batch = torch.stack(
-                    #     tuple(reward_batch[i] if abs(reward_batch[i]) < 1.0
-                    #           else reward_batch[i] + critic.gamma * output_batch[i]
-                    #           for i in range(len(minibatch))))
+                # extract V
+                # v_batch = torch.sum(critic(state_batch), dim=1)  # ??
+                v_batch = critic(state_batch)
 
-                    # extract V
-                    # v_batch = torch.sum(critic(state_batch), dim=1)  # ??
-                    v_batch = critic(state_batch)
+                # PyTorch accumulates gradients by default, so they need to be reset in each pass
+                optimizer.zero_grad()
 
-                    # PyTorch accumulates gradients by default, so they need to be reset in each pass
-                    optimizer.zero_grad()
+                # returns a new Tensor, detached from the current graph, the result will never require gradient
+                y_batch = y_batch.detach()
 
-                    # import pdb; pdb.set_trace()
-                    # returns a new Tensor, detached from the current graph, the result will never require gradient
-                    y_batch = y_batch.detach()
+                # calculate loss
+                loss = criterion(v_batch, y_batch)
 
-                    # calculate loss
-                    loss = criterion(v_batch, y_batch)
+                # do backward pass
+                loss.backward()
+                optimizer.step()
+                scheduler.step()
 
-                    # import pdb; pdb.set_trace()
+                if i % 500 == 0:
+                    print('Loss: {}'.format(loss))
 
-                    # do backward pass
-                    loss.backward()
-                    optimizer.step()
-                    scheduler.step()
+                if args.target and i % int(args.iters / 8) == 0:
+                    # Update target critic network
+                    target_critic.load_state_dict(critic.state_dict())
+                    target_critic.eval()
+                    target_critic.float()
 
-                    if i % 500 == 0:
-                        print('Loss: {}'.format(loss))
-
-                    if args.target and i % int(args.iters / 8) == 0:
-                        # Update target critic network
-                        target_critic.load_state_dict(critic.state_dict())
-                        target_critic.eval()
-                        target_critic.float()
-
-                # test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
-            alpha *= eta
-        # writer.add_scalar('Trajectory Return', current_reward, x)
+            # test_goals(critic, seeds=None, goals=[(0, 0, 0), set_goal], dim=STATE_DIM)
+        alpha *= eta
 
     print(rewards)
     if args.save:
