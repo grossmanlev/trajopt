@@ -43,7 +43,7 @@ class MPPI(Trajectory):
 
         # self.env.reset_model()
         self.sol_state.append(self.env.get_env_state().copy())
-        self.sol_obs.append(self.env._get_obs())
+        self.sol_obs.append(self.env._get_obs(goal_dist=True))
         self.act_sequence = np.ones((self.H, self.m)) * self.mean
 
         if init_seq is not None and init_seq.shape == self.act_sequence.shape:
@@ -67,7 +67,10 @@ class MPPI(Trajectory):
     def advance_time(self, act_sequence=None):
         act_sequence = self.act_sequence if act_sequence is None else act_sequence
         # accept first action and step
-        self.sol_act.append(act_sequence[0].copy())
+        if len(self.sol_act) < 10:
+            self.sol_act.append(np.zeros_like(act_sequence[0]))
+        else:
+            self.sol_act.append(act_sequence[0].copy())
         state_now = self.sol_state[-1].copy()
         if self.env.env_name == 'HumanoidDeepMimicBackflipBulletEnv-v1':
             self.env.set_env_state(self.env.env_timestep)
@@ -75,7 +78,7 @@ class MPPI(Trajectory):
             self.env.set_env_state(state_now)
         _, r, _, _ = self.env.step(act_sequence[0])
         self.sol_state.append(self.env.get_env_state().copy())
-        self.sol_obs.append(self.env._get_obs())
+        self.sol_obs.append(self.env._get_obs(goal_dist=True))
         self.sol_reward.append(r)
 
         # get updated action sequence
@@ -134,8 +137,17 @@ class MPPI(Trajectory):
                 if critic is not None:
                     if dim == 14:  # qp and qvs
                         critic_state = obs[:, :14]
+                    elif dim == 15:  # qp, qvs, and goal_dist
+                        hand_pos = obs[:, -6:-3]
+                        goal_pos = obs[:, -3:]
+                        critic_state = torch.cat(
+                            (obs[:, :14],
+                             torch.tensor([np.linalg.norm(hp-gp) for hp, gp in zip(hand_pos, goal_pos)]).unsqueeze(1)
+                             ),
+                            axis=1
+                        )
                     elif dim == 17:  # qp, qv, goal_pos
-                        critic_state = np.concatenate((obs[:, :14], obs[:, -3:]))
+                        critic_state = torch.cat((obs[:, :14], obs[:, -3:]), axis=1)
                     elif dim == 3:  # hand_pos
                         critic_state = obs[:, -6:-3]
                     elif dim == 6:  # hand_pos, goal_pos

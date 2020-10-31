@@ -34,6 +34,9 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.hand_sid = self.model.site_name2id("finger")
         self.target_sid = self.model.site_name2id("target")
 
+        hand_pos = self.data.site_xpos[self.hand_sid]
+        target_pos = self.data.site_xpos[self.target_sid]
+        self.goal_dist = np.array([np.linalg.norm(hand_pos-target_pos)])
         # self.init_qpos[0] = -1.0
         # self.init_qpos[1] = 1.0
 
@@ -44,6 +47,7 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         hand_pos = self.data.site_xpos[self.hand_sid]
         target_pos = self.data.site_xpos[self.target_sid]
         dist = np.linalg.norm(hand_pos-target_pos)
+        self.goal_dist = np.array([dist])
         reward = - 10.0 * dist - 0.25 * np.linalg.norm(self.data.qvel)
 
         if self.reward_type == 'sparse':
@@ -84,7 +88,15 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # overloading to preserve backwards compatibility
         return self._step(a)
 
-    def _get_obs(self):
+    def _get_obs(self, goal_dist=False):
+        if goal_dist:
+            return np.concatenate([
+                self.data.qpos.flat,
+                self.data.qvel.flat,
+                self.data.site_xpos[self.hand_sid],
+                self.data.site_xpos[self.target_sid],
+                self.goal_dist,
+            ])
         return np.concatenate([
             self.data.qpos.flat,
             self.data.qvel.flat,
@@ -103,9 +115,9 @@ class Reacher7DOFEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # target_pos = np.array([0.1, 0.1, 0.1])
         target_pos = np.zeros(3)
         if self.seeding is True:
-            target_pos[0] = self.np_random.uniform(low=-0.2, high=0.2)
-            target_pos[1] = self.np_random.uniform(low=-0.2, high=0.2)
-            target_pos[2] = self.np_random.uniform(low=-0.2, high=0.2)
+            target_pos[0] = self.np_random.uniform(low=-0.1, high=0.1)
+            target_pos[1] = self.np_random.uniform(low=-0.1, high=0.1)
+            target_pos[2] = self.np_random.uniform(low=-0.1, high=0.1)
         if goal is not None:
             target_pos = np.array(goal)
         # print(target_pos)

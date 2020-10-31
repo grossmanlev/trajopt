@@ -31,8 +31,8 @@ reference = reference_pos
 
 replay_buffer = ReplayBuffer(max_size=10000)
 
-# e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
-e = get_environment(ENV_NAME, reward_type='sparse', reference=None)
+e = get_environment(ENV_NAME, reward_type=reward_type, reference=reference)
+# e = get_environment(ENV_NAME, reward_type='sparse', reference=None)
 e.reset_model(seed=SEED, goal=goal, alpha=1.0)
 mean = np.zeros(e.action_dim)
 sigma = 1.0*np.ones(e.action_dim)

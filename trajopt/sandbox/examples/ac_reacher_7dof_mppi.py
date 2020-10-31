@@ -35,7 +35,7 @@ REPLAY_PICKLE_FILE = DATA_DIR + '/' + DATE_STRING + '/' + ENV_NAME + '_replay.pi
 SEED = 12345
 N_ITER = 5
 H_total = 100
-STATE_DIM = 3
+STATE_DIM = 14
 # STATE_DIM = 7
 H = 16
 # =======================================
@@ -143,9 +143,9 @@ if __name__ == '__main__':
     sigma = 1.0*np.ones(e.action_dim)
     filter_coefs = [sigma, 0.25, 0.8, 0.0]
 
-    good_agent = pickle.load(open('116_agent.pickle', 'rb'))
-    sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
-    init_seq = sol_actions[:H]
+    # good_agent = pickle.load(open('116_agent.pickle', 'rb'))
+    # sol_actions = np.array(good_agent.sol_act)  # should be (100, 7)
+    # init_seq = sol_actions[:H]
 
     replay_buffer = ReplayBuffer(max_size=10000)
 
@@ -175,13 +175,13 @@ if __name__ == '__main__':
     env_seeds = [None]
     set_goal = (0.0, 0.0, 0.0)
 
-    good_agents = []
-    sol_actions = []
-    init_seqs = []
-    for seed in env_seeds:
-        good_agents.append(pickle.load(open('agent_116_seed_{}.pickle'.format(seed), 'rb')))
-        sol_actions.append(np.array(good_agents[-1].sol_act))
-        init_seqs.append(sol_actions[-1][:H])
+    # good_agents = []
+    # sol_actions = []
+    # init_seqs = []
+    # for seed in env_seeds:
+    #     good_agents.append(pickle.load(open('agent_116_seed_{}.pickle'.format(seed), 'rb')))
+    #     sol_actions.append(np.array(good_agents[-1].sol_act))
+    #     init_seqs.append(sol_actions[-1][:H])
 
     writer_x = 0
     rewards = []
@@ -218,8 +218,8 @@ if __name__ == '__main__':
             samples += critic.compress_agent(agent, dim=STATE_DIM)  # add solution traj
             replay_buffer.concatenate(samples)  # add to replay buffer
 
-            test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
-            tmp_reward = np.sum(test_agent.sol_reward)
+            # test_agent = test_critic(critic, dim=STATE_DIM)  # test critic using just sparse reward
+            tmp_reward = np.sum(agent.sol_reward)
             rewards.append(tmp_reward)
             print("Trajectory reward = %f" % tmp_reward)
             writer.add_scalar('Trajectory Return', tmp_reward, writer_x)

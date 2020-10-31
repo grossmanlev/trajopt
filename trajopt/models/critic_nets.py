@@ -65,6 +65,11 @@ class Critic(nn.Module):
         """ Put a reacher_env observation into a compressed format """
         if dim == 14:
             return state[:14]
+        elif dim == 15:
+            hand_pos = state[-6:-3]
+            goal_pos = state[-3:]
+            dst = np.linalg.norm(hand_pos-goal_pos)
+            return np.concatenate((state[:14], [dst]))
         elif dim == 17:
             return np.concatenate((state[:14], state[-3:]))
         elif dim == 3:

@@ -21,9 +21,10 @@ H = 16
 # =======================================
 
 
-def custom_reward_fn(sol_reward):
-    """ 1 if any of the rewards is +100 (reached goal), 0 otherwise."""
-    return int(100 in [int(elt) for elt in sol_reward])
+def custom_reward_fn(sol_obs, radius=0.025):
+    """ 1 if the robot was within radius meters of the goal"""
+    dsts = [np.linalg.norm(obs[-6:-3]-obs[-3:]) for obs in sol_obs]
+    return int(min(dsts) < radius)
 
 
 if __name__ == '__main__':
@@ -32,11 +33,16 @@ if __name__ == '__main__':
                         help='path to critic model (.pt) file')
     parser.add_argument('--iters', default=10, type=int,
                         help='number of random initializations to test')
+    parser.add_argument('--goals', action='store_true')
     args = parser.parse_args()
 
-    e = get_environment(ENV_NAME, sparse_reward=False)
+    if args.goals:
+        STATE_DIM += 1
+
+    e = get_environment(ENV_NAME, reward_type='sparse')
     goal = np.zeros(3)
-    e.reset_model(seed=SEED, goal=goal)
+    # e.reset_model(seed=SEED, goal=goal)
+    seed = 11
 
     mean = np.zeros(e.action_dim)
     sigma = 1.0*np.ones(e.action_dim)
@@ -63,15 +69,15 @@ if __name__ == '__main__':
     custom_rewards = []
     agents = []
 
-    for _ in tqdm(range(args.iters), disable=False):
-        e = get_environment(ENV_NAME, sparse_reward=False)
-        e.reset_model(goal=goal)
+    for _ in tqdm(range(args.iters), disable=True):
+        # e = get_environment(ENV_NAME, sparse_reward=False)
+        e.reset_model(seed=seed)
+        print('Goal: {}'.format(e.get_env_state()['target_pos']))
+        goal = e.get_env_state()['target_pos']
 
-        np.random.seed(seed=np_seed)
-        random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
-        # print(random_qpos)
-        e.set_state(random_qpos, e.init_qvel)
-        # print(e._get_obs())
+        # np.random.seed(seed=np_seed)
+        # random_qpos = np.random.uniform(joint_limits[:, 0], joint_limits[:, 1])
+        # e.set_state(random_qpos, e.init_qvel)
 
         agent = MPPI(e, H=H, paths_per_cpu=40, num_cpu=1,
                      kappa=25.0, gamma=1.0, mean=mean,
@@ -81,13 +87,14 @@ if __name__ == '__main__':
 
         ts = timer.time()
 
-        for t in tqdm(range(H_total), disable=True):
+        for t in tqdm(range(H_total), disable=False):
 
             # Actor step
-            agent.train_step(critic=critic, niter=N_ITER, goal=goal)
+            tuples = agent.train_step(
+                critic=critic, niter=N_ITER, goal=goal, dim=STATE_DIM)
 
         reward = np.sum(agent.sol_reward)
-        custom_reward = custom_reward_fn(agent.sol_reward)
+        custom_reward = custom_reward_fn(agent.sol_obs)
         rewards.append(reward)
         custom_rewards.append(custom_reward)
 
@@ -96,9 +103,9 @@ if __name__ == '__main__':
         print("Trajectory reward = %f" % reward)
         print("Custom reward = %f" % custom_reward)
 
-        # _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
-        # for _ in range(10):
-        #     agent.animate_result()
+        _ = input("Press enter to display optimized trajectory (will be played 100 times) : ")
+        for _ in range(10):
+            agent.animate_result()
         agents.append(agent)
 
         np_seed += 1
