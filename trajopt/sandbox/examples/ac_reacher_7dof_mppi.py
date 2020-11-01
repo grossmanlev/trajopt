@@ -101,21 +101,39 @@ def test_critic(critic, dim=14):
     return test_agent
 
 
-if __name__ == '__main__':
+def create_arg_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--critic', default=None,
-                        help='path to critic model (.pt) file')
-    parser.add_argument('--train', action='store_true',
-                        help='train the critic net?')
-    parser.add_argument('--save_buffer', action='store_true',
-                        help='save the replay buffer?')
-    parser.add_argument('--target', default=True, type=bool)
-    parser.add_argument('--eta', default=0.9, type=float)
+    parser.add_argument(
+        '--critic', default=None,
+        help='path to critic model (.pt) file'
+    )
+    parser.add_argument(
+        '--train', action='store_true',
+        help='train the critic net?'
+    )
+    parser.add_argument(
+        '--save_buffer', action='store_true',
+        help='save the replay buffer?'
+    )
+    parser.add_argument(
+        '--target', default=True, type=bool,
+        help="use target network? (default: True)"
+    )
+    parser.add_argument(
+        '--epochs', default=100, type=int, help="actor-critic epochs")
+    parser.add_argument('--eta', default=0.9, type=float, help="eta param")
     parser.add_argument('--goals', action='store_true')
     parser.add_argument('--lr', default=1e-2, type=float)
-    parser.add_argument('--iters', default=2000, type=int)
-    parser.add_argument('--save', action='store_true')
-    parser.add_argument('--POLO', action='store_true')
+    parser.add_argument(
+        '--iters', default=2000, type=int, help="critic training iterations")
+    parser.add_argument(
+        '--save', action='store_true', help="save critic network and agent")
+    parser.add_argument(
+        '--POLO', action='store_true', help="run POLO algorithm")
+
+
+if __name__ == '__main__':
+    parser = create_arg_parser()
     args = parser.parse_args()
 
     # Check to add goal position to state space
@@ -184,7 +202,7 @@ if __name__ == '__main__':
     if args.POLO:
         alpha = 0.0
 
-    for x in range(100):
+    for x in range(args.epochs):
         e.reset_model(seed=None, goal=set_goal, alpha=alpha)
         print('Goal: {}'.format(e.get_env_state()['target_pos']))
         goal = e.get_env_state()['target_pos']

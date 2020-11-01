@@ -1,6 +1,4 @@
-# Test Scripts
-
-This subdirectory contains most test and example scripts for our CS249r final project.
+# Reference-guided, Value-based MPC
 
 Installation instructions can be found in the main README located in the ``trajopt`` folder.
 
@@ -8,36 +6,24 @@ Installation instructions can be found in the main README located in the ``trajo
 
 ### ac_reacher_7dof_mppi.py
 
-This file contains methods to run the MPPI trajopt agent as well as train a Critic value network in conjunction (online learning).
-
-Run the MPPI algorithm on the 7DOF arm:
+This file runs the RVMPC algorithm on the 7DOF robotic reacher environment.
 
 ```
-python3 ac_reacher_7dof_mppi.py
+python3.7 ac_reacher_7dof_mppi.py --train --save
 ```
 
-Run the MPPI algorithm on the 7DOF arm and have a Critic value network learn online, using a replay buffer
+### humanoid_mppi.py
+
+This file runs the MPPI algorithm on the humanoid environment.
+NOTE: Still a work in progress getting an MPPI controller working on a
+humanoid environment (defined in `envs/humanoid_env.py`).
 ```
-python3 ac_reacher_7dof_mppi.py --train True
+python3.7 humanoid_mppi.py
 ```
 
-Run the MPPI algorithm, and have it learn using a learned Critic network as its cost function
-```
-python3 ac_reacher_7dof_mppi.py --critic data/initial_critic_converged/reacher_7dof_critic.pt
-```
-
-### offline_critic_reacher_7dof.py
-
-This file trains a Critic value network using batch data collected previously from MPPI trajectories.
-
-Run the Critic learning scheme using a pre-collected, pickled ReplayBuffer
-```
-python3 offline_critic_reacher_7dof.py data/good_replay/reacher_7dof_replay.pickle
-```
 
 ### play_mppi_agent.py
 
 This file takes in a pretrained, pickled MPPI agent file and displays the solution trajectory
 ```
-python3 play_mppi_agent.py data/offline_critic_converged_agent/reacher_7dof_mppi.pickle
-```
+python3 play_mppi_agent.py <path_to_agent_file>
